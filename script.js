@@ -143,15 +143,16 @@ function processRetentionRows(data) {
 
 function processAttendanceRows(data) {
   ALL_ATTENDANCE = data.map(row => ({
-    studentId:    cleanCell(row.student_id),
-    studentName:  cleanCell(row.student_name),
-    center:       cleanCell(row.center),
-    date:         row.date_str || formatDisplayDate(row.date),
-    class_:       cleanCell(row.class),
-    status:       cleanCell(row.status),
-    makeupReason: cleanCell(row.makeup_reason),
-    type:         cleanCell(row.type),
-    isOldClass:   Boolean(row.is_old_class),
+    studentId:     cleanCell(row.student_id),
+    studentName:   cleanCell(row.student_name),
+    center:        cleanCell(row.center),
+    rawDate:       cleanCell(row.date), // Keeps standard ISO format (e.g. "YYYY-MM-DD") for sorting
+    dateStr:       row.date_str || formatDisplayDate(row.date), // Preferred display string
+    class_:        cleanCell(row.class),
+    status:        cleanCell(row.status),
+    makeupReason:  cleanCell(row.makeup_reason),
+    type:          cleanCell(row.type),
+    isOldClass:    Boolean(row.is_old_class),
     previousClass: cleanCell(row.previous_class)
   }));
 }
@@ -464,8 +465,24 @@ function lp3Render(key) {
   const classOldFlag = window._lp3ClassOldFlag || {};
 
   const isMakeUpTab = key === "__makeup__";
-  const rows        = isMakeUpTab ? makeupAll : (key === "__all__" ? all : (classMap[key] || []));
+  let rows          = isMakeUpTab ? makeupAll : (key === "__all__" ? all : (classMap[key] || []));
   const isOldTab    = !isMakeUpTab && key !== "__all__" && classOldFlag[key];
+
+  // ------------------------------------------------------------
+  // SORTING ATTENDANCE LOGS (Newest Date Top, Blank Dates Bottom)
+  // ------------------------------------------------------------
+  rows.sort((a, b) => {
+    const dateA = a.rawDate || a.dateStr || "";
+    const dateB = b.rawDate || b.dateStr || "";
+
+    // Blank dates sent to bottom
+    if (!dateA && !dateB) return 0;
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+
+    // Descending order (Newest first)
+    return dateB.localeCompare(dateA);
+  });
 
   const metricsEl = document.getElementById("lp3-metrics");
   const titleEl   = document.getElementById("lp3-att-title");
@@ -496,7 +513,7 @@ function lp3Render(key) {
       const prevTag        = r.previousClass
         ? `<span class="prev-class-tag">↩ ${escapeHtml(simplifyClassName(r.previousClass))}</span>` : "";
       return `<tr>
-        <td><span class="att-dot-inline ${dot}"></span>${escapeHtml(r.date)}</td>
+        <td><span class="att-dot-inline ${dot}"></span>${escapeHtml(r.dateStr || "-")}</td>
         <td>${escapeHtml(cls)}${reasonTag}${prevTag}</td>
         <td><span class="att-badge ${badge}">${escapeHtml(r.status)}</span></td>
       </tr>`;
@@ -546,7 +563,7 @@ function lp3Render(key) {
     const reasonTag      = r.makeupReason && r.makeupReason !== "Regular Class" && r.makeupReason !== ""
       ? `<span class="reason-tag">${escapeHtml(r.makeupReason)}</span>` : "";
     return `<tr>
-      <td><span class="att-dot-inline ${dot}"></span>${escapeHtml(r.date)}</td>
+      <td><span class="att-dot-inline ${dot}"></span>${escapeHtml(r.dateStr || "-")}</td>
       <td>${escapeHtml(cls)}${reasonTag}</td>
       <td><span class="att-badge ${badge}">${escapeHtml(r.status)}</span></td>
     </tr>`;
