@@ -31,7 +31,63 @@ function getClassLabel(raw) {
 // ==========================================
 // 2. PAGE INITIALIZATION (URL PARAMS)
 // ==========================================
+// document.addEventListener("DOMContentLoaded", async () => {
+//   const urlParams = new URLSearchParams(window.location.search);
+//   const phoneParam = urlParams.get("phone");
+//   const sidParam   = urlParams.get("sid");
+
+//   if (!phoneParam && !sidParam) {
+//     showError("Data tidak ditemukan. Silakan masuk melalui link WhatsApp resmi.");
+//     return;
+//   }
+
+//   await loadStudentData(phoneParam, sidParam);
+// });
+
 document.addEventListener("DOMContentLoaded", async () => {
+  const app = document.getElementById("app");
+
+  // 1. Inject base HTML layout into <main id="app">
+  if (app) {
+    app.innerHTML = `
+      <div class="container" style="max-width: 800px; margin: 0 auto; padding: 16px;">
+        <!-- Header Card -->
+        <div class="card header-card" style="margin-bottom: 16px;">
+          <h2 id="student-name">Loading...</h2>
+          <p id="student-id" class="text-muted"></p>
+          <p id="center-name" class="text-muted"></p>
+          <a id="sar-wa-btn" class="btn-wa" style="display:none;" target="_blank">Hubungi Admin</a>
+        </div>
+
+        <!-- Class Filter Tabs -->
+        <div id="class-tabs" class="tabs-container" style="margin-bottom: 16px;"></div>
+
+        <!-- Metrics Chips -->
+        <div id="lp3-metrics" style="margin-bottom: 16px;"></div>
+
+        <!-- Attendance Section -->
+        <div class="card table-card">
+          <h3 id="lp3-att-title" style="margin-bottom: 12px;">Riwayat Kehadiran</h3>
+          
+          <div id="loading-state" style="padding: 16px; text-align: center;">Memuat data...</div>
+          <div id="error-state" class="error-msg" style="display:none; color: red; padding: 16px; text-align: center;"></div>
+
+          <table class="att-table" style="width: 100%;">
+            <thead>
+              <tr>
+                <th style="text-align: left;">Tanggal</th>
+                <th style="text-align: left;">Kelas</th>
+                <th style="text-align: left;">Status</th>
+              </tr>
+            </thead>
+            <tbody id="lp3-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  // 2. Read URL Parameters
   const urlParams = new URLSearchParams(window.location.search);
   const phoneParam = urlParams.get("phone");
   const sidParam   = urlParams.get("sid");
@@ -43,6 +99,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   await loadStudentData(phoneParam, sidParam);
 });
+
+
 
 // ==========================================
 // 3. FETCH DATA FROM SUPABASE
