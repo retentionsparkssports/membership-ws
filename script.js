@@ -4,7 +4,8 @@
 const SUPABASE_URL = "https://cfdjsilmcomflleqhqii.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_bUL-eM8mbA8fgFYoUpXVFg_DTWaUKdf";
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 
 // State Management
 let currentStudent = null;
