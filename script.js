@@ -6,7 +6,6 @@ const SUPABASE_ANON_KEY = "sb_publishable_bUL-eM8mbA8fgFYoUpXVFg_DTWaUKdf";
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-
 // State Management
 let currentStudent = null;
 let currentAttendance = [];
@@ -53,7 +52,7 @@ async function loadStudentData(phone, studentId) {
     showLoading(true);
 
     // 1. Fetch Student from `compiled_retention`
-    let query = supabase.from("compiled_retention").select("*");
+    let query = supabaseClient.from("compiled_retention").select("*");
     
     if (studentId) {
       query = query.eq("student_id", studentId);
