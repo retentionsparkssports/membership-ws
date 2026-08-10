@@ -4,7 +4,6 @@
 const SUPABASE_URL = "https://cfdjsilmcomflleqhqii.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_bUL-eM8mbA8fgFYoUpXVFg_DTWaUKdf";
 
-// Initialize Supabase Client
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const LOGO_URL      = "logo.png";
@@ -15,7 +14,6 @@ const app = document.getElementById("app");
 
 let ALL_STUDENTS   = [];
 let ALL_ATTENDANCE = [];
-let ALL_BACKUP     = [];
 let DATA_READY     = false;
 let DATA_ERROR     = "";
 
@@ -44,12 +42,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     
     if (!ALL_STUDENTS.length) { renderNotFoundPage(phone || studentId); return; }
 
-    const student = selectBestStudentRecord(ALL_STUDENTS, studentId);
+    const student = ALL_STUDENTS[0];
     await fetchAttendanceForStudent(studentId);
 
-    const waLink  = student.waLink;
-    const sarName = student.sarName;
-    renderDetailPage(student, ALL_ATTENDANCE, waLink, sarName, phone);
+    renderDetailPage(student, ALL_ATTENDANCE, student.waLink, student.sarName, phone);
     return;
   }
 
@@ -59,9 +55,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     await loadStudentsByPhone(phone);
     if (DATA_ERROR) { renderErrorPage(DATA_ERROR); return; }
     
-    const students = findByPhone(phone);
-    if (!students.length) { renderNotFoundPage(phone); return; }
-    renderDashboardPage(students);
+    if (!ALL_STUDENTS.length) { renderNotFoundPage(phone); return; }
+    renderDashboardPage(ALL_STUDENTS);
     return;
   }
 
@@ -70,19 +65,28 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 // ============================================================
-// DATABASE LOADERS (SUPABASE)
+// DATABASE LOADERS (SECURE SUPABASE RPC CALLS)
 // ============================================================
 
-async function loadStudentsByPhone(rawPhone) {
+async function loadStudentsByPhone(phone) {
   try {
-    const normalized = normalizePhone(rawPhone);
     const { data, error } = await supabaseClient
-      .from('compiled_retention')
-      .select('*')
-      .or(`phone_number.eq.${normalized},phone_number.eq.${rawPhone}`);
+      .rpc('get_students_by_phone', { search_phone: phone });
 
     if (error) throw error;
-    processRetentionRows(data || []);
+    
+    ALL_STUDENTS = (data || []).map(row => ({
+      center:        row.center,
+      studentId:     row.student_id,
+      studentName:   row.student_name,
+      phone:         row.phone_number,
+      parentsName:   row.parents_name,
+      retentionX:    row.retention_x,
+      expiryDateRaw: row.expiry_date_raw,
+      expiryDate:    formatDisplayDate(row.expiry_date_raw),
+      sarName:       row.sar_name,
+      waLink:        row.wa_link
+    }));
     DATA_READY = true;
   } catch (e) {
     DATA_ERROR = "Data membership belum bisa dimuat. Silakan coba beberapa saat lagi atau hubungi " + SUPPORT_LABEL + " untuk bantuan.";
@@ -93,12 +97,22 @@ async function loadStudentsByPhone(rawPhone) {
 async function loadStudentById(studentId) {
   try {
     const { data, error } = await supabaseClient
-      .from('compiled_retention')
-      .select('*')
-      .eq('student_id', studentId);
+      .rpc('get_student_by_id', { search_id: studentId });
 
     if (error) throw error;
-    processRetentionRows(data || []);
+    
+    ALL_STUDENTS = (data || []).map(row => ({
+      center:        row.center,
+      studentId:     row.student_id,
+      studentName:   row.student_name,
+      phone:         row.phone_number,
+      parentsName:   row.parents_name,
+      retentionX:    row.retention_x,
+      expiryDateRaw: row.expiry_date_raw,
+      expiryDate:    formatDisplayDate(row.expiry_date_raw),
+      sarName:       row.sar_name,
+      waLink:        row.wa_link
+    }));
     DATA_READY = true;
   } catch (e) {
     DATA_ERROR = "Data membership belum bisa dimuat. Silakan coba beberapa saat lagi atau hubungi " + SUPPORT_LABEL + " untuk bantuan.";
@@ -109,97 +123,26 @@ async function loadStudentById(studentId) {
 async function fetchAttendanceForStudent(studentId) {
   try {
     const { data, error } = await supabaseClient
-      .from('attendance_logs')
-      .select('*')
-      .eq('student_id', studentId);
+      .rpc('get_attendance_by_student_id', { search_id: studentId });
 
     if (error) throw error;
-    processAttendanceRows(data || []);
+    
+    ALL_ATTENDANCE = (data || []).map(row => ({
+      studentId:     row.student_id,
+      studentName:   row.student_name,
+      center:        row.center,
+      rawDate:       row.raw_date,
+      dateStr:       row.date_str || formatDisplayDate(row.raw_date),
+      class_:        row.class_,
+      status:        row.status,
+      makeupReason:  row.makeup_reason,
+      type:          row.type,
+      isOldClass:    Boolean(row.is_old_class),
+      previousClass: row.previous_class
+    }));
   } catch (e) {
     console.error("Failed to fetch attendance for student", studentId, e);
   }
-}
-
-// ============================================================
-// PROCESS RETENTION & ATTENDANCE DATA
-// ============================================================
-
-function processRetentionRows(data) {
-  ALL_STUDENTS = data.map(row => ({
-    branch:          row.center || "",
-    center:          row.center || "Center belum tersedia",
-    studentId:       cleanCell(row.student_id),
-    studentName:     cleanCell(row.student_name),
-    phone:           cleanCell(row.phone_number),
-    normalizedPhone: normalizePhone(row.phone_number),
-    parentsName:     cleanCell(row.parents_name),
-    retentionX:      parseInt(row.retention_x, 10) || 0,
-    expiryDateRaw:   cleanCell(row.previous_last_membership_date),
-    expiryDate:      formatDisplayDate(cleanCell(row.previous_last_membership_date)),
-    sarName:         cleanCell(row.student_advisor_retention),
-    waLink:          cleanCell(row.wa_link_sar)
-  }));
-}
-
-function processAttendanceRows(data) {
-  ALL_ATTENDANCE = data.map(row => ({
-    studentId:     cleanCell(row.student_id),
-    studentName:   cleanCell(row.student_name),
-    center:        cleanCell(row.center),
-    rawDate:       cleanCell(row.date), // Keeps standard ISO format (e.g. "YYYY-MM-DD") for sorting
-    dateStr:       row.date_str || formatDisplayDate(row.date), // Preferred display string
-    class_:        cleanCell(row.class),
-    status:        cleanCell(row.status),
-    makeupReason:  cleanCell(row.makeup_reason),
-    type:          cleanCell(row.type),
-    isOldClass:    Boolean(row.is_old_class),
-    previousClass: cleanCell(row.previous_class)
-  }));
-}
-
-// ============================================================
-// LOOKUP FUNCTIONS
-// ============================================================
-
-function selectBestStudentRecord(candidates, studentId) {
-  const filtered = candidates.filter(s => s.studentId === studentId);
-  return filtered.reduce((best, s) => {
-    if (!best) return s;
-    if (s.retentionX > best.retentionX) return s;
-    if (s.retentionX === best.retentionX) {
-      const dNew = parseExpiryDate(s.expiryDateRaw);
-      const dOld = parseExpiryDate(best.expiryDateRaw);
-      if (dNew && dOld && dNew > dOld) return s;
-      if (dNew && !dOld) return s;
-    }
-    return best;
-  }, null);
-}
-
-function findByPhone(rawInput) {
-  const needle  = normalizePhone(rawInput);
-  const matched = ALL_STUDENTS.filter(s => s.normalizedPhone && s.normalizedPhone === needle);
-  if (!matched.length) return [];
-  const byStudent = {};
-  matched.forEach(s => {
-    if (!s.studentId) return;
-    const existing = byStudent[s.studentId];
-    if (!existing) {
-      byStudent[s.studentId] = s;
-      return;
-    }
-    if (s.retentionX > existing.retentionX) {
-      byStudent[s.studentId] = s;
-      return;
-    }
-    if (s.retentionX === existing.retentionX) {
-      const dNew = parseExpiryDate(s.expiryDateRaw);
-      const dOld = parseExpiryDate(existing.expiryDateRaw);
-      if (dNew && dOld && dNew > dOld) byStudent[s.studentId] = s;
-      else if (dNew && !dOld)          byStudent[s.studentId] = s;
-    }
-  });
-  return Object.values(byStudent).sort((a, b) => String(a.studentId).localeCompare(String(b.studentId)));
 }
 
 // ============================================================
@@ -269,7 +212,7 @@ function renderNotFoundPage(phone) {
       <div class="search-visual">${ICON_SEARCH}</div>
       <h2 class="headline">Nomor Tidak Ditemukan</h2>
       <p class="error-text">Kami belum menemukan data membership untuk nomor:</p>
-      <div class="phone-box">+${escapeHtml(normalizePhone(phone))}</div>
+      <div class="phone-box">+${escapeHtml(phone)}</div>
       <p class="error-text">Coba cek kembali angka yang dimasukkan. Jika nomor sudah benar tetapi data tetap tidak muncul, silakan hubungi Student Advisor Retention center kamu untuk pengecekan data.</p>
       <br>
       <a class="wa-help-btn" href="${SUPPORT_WA}" target="_blank">${ICON_WA} Hubungi ${SUPPORT_LABEL}</a>
@@ -328,7 +271,7 @@ function renderDashboardPage(students) {
 }
 
 function studentCard(student, phone) {
-  const centerText = student.center || student.branch || "Center belum tersedia";
+  const centerText = student.center;
   const sid        = encodeURIComponent(student.studentId);
   const ph         = encodeURIComponent(phone);
   return `
@@ -337,7 +280,7 @@ function studentCard(student, phone) {
         <div class="avatar">${getInitials(student.studentName)}</div>
         <div class="card-info">
           <div class="student-name">${escapeHtml(student.studentName || "Nama belum tersedia")}</div>
-          <div class="student-id">${escapeHtml(student.studentId || "")}</div>
+          <div class="student-id">${escapeHtml(student.studentId)}</div>
           <div><span class="center-badge">${escapeHtml(centerText)}</span></div>
         </div>
       </div>
@@ -353,23 +296,17 @@ function studentCard(student, phone) {
 
 function renderDetailPage(student, attendance, waLink, sarName, phone) {
   document.body.className = "dashboard-page";
-  const centerText = student.center || student.branch || "Center belum tersedia";
+  const centerText = student.center;
   const ph         = encodeURIComponent(phone || "");
   const waTarget   = waLink || SUPPORT_WA;
-  const waLabel    = waLink
-    ? "Hubungi Student Advisor"
-    : `Hubungi ${SUPPORT_LABEL}`;
+  const waLabel    = waLink ? "Hubungi Student Advisor" : `Hubungi ${SUPPORT_LABEL}`;
 
   const classMap = {};
   const classOldFlag = {};
   attendance.forEach(r => {
     const isMakeUp = r.type && r.type.toLowerCase() === "make up";
-    let tabLabel;
-    if (isMakeUp) {
-      tabLabel = r.previousClass ? getClassLabel(r.previousClass) : null;
-    } else {
-      tabLabel = getClassLabel(r.class_);
-    }
+    let tabLabel = isMakeUp ? (r.previousClass ? getClassLabel(r.previousClass) : null) : getClassLabel(r.class_);
+    
     if (tabLabel) {
       if (!classMap[tabLabel]) { classMap[tabLabel] = []; classOldFlag[tabLabel] = true; }
       classMap[tabLabel].push(r);
@@ -403,8 +340,8 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
         <div class="card-top">
           <div class="avatar">${getInitials(student.studentName)}</div>
           <div class="card-info">
-            <div class="student-name">${escapeHtml(student.studentName || "")}</div>
-            <div class="student-id">${escapeHtml(student.studentId || "")}</div>
+            <div class="student-name">${escapeHtml(student.studentName)}</div>
+            <div class="student-id">${escapeHtml(student.studentId)}</div>
             <div><span class="center-badge">${escapeHtml(centerText)}</span></div>
           </div>
         </div>
@@ -468,22 +405,6 @@ function lp3Render(key) {
   let rows          = isMakeUpTab ? makeupAll : (key === "__all__" ? all : (classMap[key] || []));
   const isOldTab    = !isMakeUpTab && key !== "__all__" && classOldFlag[key];
 
-  // ------------------------------------------------------------
-  // SORTING ATTENDANCE LOGS (Newest Date Top, Blank Dates Bottom)
-  // ------------------------------------------------------------
-  rows.sort((a, b) => {
-    const dateA = a.rawDate || a.dateStr || "";
-    const dateB = b.rawDate || b.dateStr || "";
-
-    // Blank dates sent to bottom
-    if (!dateA && !dateB) return 0;
-    if (!dateA) return 1;
-    if (!dateB) return -1;
-
-    // Descending order (Newest first)
-    return dateB.localeCompare(dateA);
-  });
-
   const metricsEl = document.getElementById("lp3-metrics");
   const titleEl   = document.getElementById("lp3-att-title");
   const tbody     = document.getElementById("lp3-tbody");
@@ -507,11 +428,9 @@ function lp3Render(key) {
     }
     tbody.innerHTML = makeupAll.map(r => {
       const cls            = simplifyClassName(r.class_);
-      const { badge, dot } = getStatusBadge(r.status, r.makeupReason);
-      const reasonTag      = r.makeupReason && r.makeupReason !== ""
-        ? `<span class="reason-tag">${escapeHtml(r.makeupReason)}</span>` : "";
-      const prevTag        = r.previousClass
-        ? `<span class="prev-class-tag">↩ ${escapeHtml(simplifyClassName(r.previousClass))}</span>` : "";
+      const { badge, dot } = getStatusBadge(r.status);
+      const reasonTag      = r.makeupReason ? `<span class="reason-tag">${escapeHtml(r.makeupReason)}</span>` : "";
+      const prevTag        = r.previousClass ? `<span class="prev-class-tag">↩ ${escapeHtml(simplifyClassName(r.previousClass))}</span>` : "";
       return `<tr>
         <td><span class="att-dot-inline ${dot}"></span>${escapeHtml(r.dateStr || "-")}</td>
         <td>${escapeHtml(cls)}${reasonTag}${prevTag}</td>
@@ -559,9 +478,8 @@ function lp3Render(key) {
 
   tbody.innerHTML = rows.map(r => {
     const cls            = simplifyClassName(r.class_);
-    const { badge, dot } = getStatusBadge(r.status, r.makeupReason);
-    const reasonTag      = r.makeupReason && r.makeupReason !== "Regular Class" && r.makeupReason !== ""
-      ? `<span class="reason-tag">${escapeHtml(r.makeupReason)}</span>` : "";
+    const { badge, dot } = getStatusBadge(r.status);
+    const reasonTag      = r.makeupReason && r.makeupReason !== "Regular Class" ? `<span class="reason-tag">${escapeHtml(r.makeupReason)}</span>` : "";
     return `<tr>
       <td><span class="att-dot-inline ${dot}"></span>${escapeHtml(r.dateStr || "-")}</td>
       <td>${escapeHtml(cls)}${reasonTag}</td>
@@ -626,55 +544,31 @@ function simplifyClassName(raw) {
   return raw;
 }
 
-function getStatusBadge(status, reason) {
+function getStatusBadge(status) {
   const s = status ? status.toLowerCase() : "";
   if (s === "present")  return { badge: "badge-present", dot: "dot-present" };
   if (s === "make up")  return { badge: "badge-makeup",  dot: "dot-makeup"  };
   if (s === "absent")   return { badge: "badge-absent",  dot: "dot-absent"  };
-  if (s === "leave" || s === "izin") return { badge: "badge-absent", dot: "dot-absent" };
-  if (s === "sakit")    return { badge: "badge-absent",  dot: "dot-absent"  };
+  if (s === "leave" || s === "izin" || s === "sakit") return { badge: "badge-absent", dot: "dot-absent" };
   return { badge: "badge-present", dot: "dot-present" };
 }
 
 function formatGreetingParentName(name) {
-  const clean = cleanCell(name);
-  if (!clean) return "";
-  const lower = clean.toLowerCase();
-  if (["mom","dad","mama","papa","bunda","ayah","ibu","mr","mrs"].some(p => lower.startsWith(p))) return clean;
-  return `Mom/Dad ${clean}`;
-}
-
-function cleanCell(v) { return (v === null || v === undefined) ? "" : String(v).trim(); }
-
-function normalizePhone(phone) {
-  let p = cleanCell(phone).replace(/[\s\-\(\)\+\.]/g,"");
-  if (!p) return "";
-  if (p.startsWith("0")) p = "62" + p.slice(1);
-  else if (p.startsWith("8")) p = "62" + p;
-  if (p.startsWith("620")) p = "62" + p.slice(3);
-  return p;
+  if (!name) return "";
+  const lower = name.toLowerCase();
+  if (["mom","dad","mama","papa","bunda","ayah","ibu","mr","mrs"].some(p => lower.startsWith(p))) return name;
+  return `Mom/Dad ${name}`;
 }
 
 function parseExpiryDate(value) {
-  const raw = cleanCell(value);
-  if (!raw || raw === "-" || raw.toLowerCase() === "not yet renewal" || raw.toLowerCase() === "xxxxx" || raw.startsWith("#")) return null;
-  const mm = {jan:0,january:0,feb:1,february:1,mar:2,march:2,apr:3,april:3,may:4,mei:4,jun:5,june:5,juli:6,july:6,aug:7,august:7,agu:7,agustus:7,sep:8,sept:8,september:8,oct:9,october:9,okt:9,oktober:9,nov:10,november:10,dec:11,december:11,des:11,desember:11};
-  let m;
-  m = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m) return new Date(+m[1],+m[2]-1,+m[3]);
-  m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
-  if (m) { let y=+m[3]; if(y<100)y+=2000; return +m[1]>12?new Date(y,+m[2]-1,+m[1]):new Date(y,+m[1]-1,+m[2]); }
-  m = raw.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{2,4})$/);
-  if (m) { let y=+m[3]; if(y<100)y+=2000; if(mm[m[2].toLowerCase()]!==undefined)return new Date(y,mm[m[2].toLowerCase()],+m[1]); }
-  m = raw.match(/^(\d{1,2})-([A-Za-z]+)-(\d{2,4})$/);
-  if (m) { let y=+m[3]; if(y<100)y+=2000; if(mm[m[2].toLowerCase()]!==undefined)return new Date(y,mm[m[2].toLowerCase()],+m[1]); }
-  const fb = new Date(raw);
+  if (!value || value === "-" || value.toLowerCase() === "not yet renewal" || value.toLowerCase() === "xxxxx" || value.startsWith("#")) return null;
+  const fb = new Date(value);
   return isNaN(fb.getTime()) ? null : fb;
 }
 
 function formatDisplayDate(value) {
   const date = parseExpiryDate(value);
-  if (!date) return cleanCell(value);
+  if (!date) return value || "";
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
 }
@@ -686,14 +580,14 @@ function daysUntil(date) {
 }
 
 function getInitials(name) {
-  const clean = cleanCell(name).replace(/\s*\(.*\)\s*$/, "").trim();
-  if (!clean) return "?";
+  if (!name) return "?";
+  const clean = name.replace(/\s*\(.*\)\s*$/, "").trim();
   const parts = clean.split(/\s+/).filter(Boolean);
   return parts.length === 1 ? parts[0][0].toUpperCase() : (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
 function escapeHtml(value) {
-  return cleanCell(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  return String(value || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
 // ============================================================
@@ -703,10 +597,13 @@ function escapeHtml(value) {
 function goToDashboard() {
   const input = document.getElementById("phone");
   const btn   = document.getElementById("btn");
-  let raw = input.value.trim().replace(/[^0-9]/g, "");
-  if (!raw)          { alert("Masukkan nomor WhatsApp terlebih dahulu."); return; }
-  if (raw.length < 9){ alert("Nomor terlalu pendek"); return; }
-  const phone = normalizePhone(raw);
+  let phone = input.value.trim().replace(/[^0-9]/g, "");
+  if (!phone)           { alert("Masukkan nomor WhatsApp terlebih dahulu."); return; }
+  if (phone.length < 8) { alert("Nomor terlalu pendek"); return; }
+  
+  if (phone.startsWith("0")) phone = "62" + phone.slice(1);
+  else if (phone.startsWith("8")) phone = "62" + phone;
+
   btn.textContent = "Mencari...";
   btn.disabled = true;
   window.location.href = `${window.location.pathname}?phone=${encodeURIComponent(phone)}`;
