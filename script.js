@@ -604,7 +604,7 @@ function getStatusBadge(status) {
   if (s === "present")  return { badge: "badge-present", dot: "dot-present" };
   if (s === "make up")  return { badge: "badge-makeup",  dot: "dot-makeup"  };
   if (s === "absent")   return { badge: "badge-absent",  dot: "dot-absent"  };
-  if (s === "leave" || s === "izin" || s === "sakit") return { badge: "badge-absent", dot: "dot-absent" };
+  if (s === "leave" || s === "izin" || s === "sakit") return { badge: "badge-leave", dot: "dot-leave" };
   return { badge: "badge-present", dot: "dot-present" };
 }
 
