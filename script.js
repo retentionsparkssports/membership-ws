@@ -139,8 +139,8 @@ async function fetchAttendanceForStudent(studentId) {
       type:          row.type,
       isOldClass:    Boolean(row.is_old_class),
       previousClass: row.previous_class,
-      term:          row.term || "",
-      quarter:       row.quarter || ""
+      term:          cleanCell(row.term),
+      quarter:       cleanCell(row.quarter)
     }));
   } catch (e) {
     console.error("Failed to fetch attendance for student", studentId, e);
@@ -303,22 +303,28 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
   const waTarget   = waLink || SUPPORT_WA;
   const waLabel    = waLink ? "Hubungi Student Advisor" : `Hubungi ${SUPPORT_LABEL}`;
 
-  // Process dynamic terms and quarters (YYYY-QQ)
-  const termMap = {};
+  // Build mapping of Quarter -> Term Display Label
+  const quarterMap = {};
   attendance.forEach(r => {
-    const qKey = r.quarter || "Unassigned";
-    if (!termMap[qKey]) {
-      termMap[qKey] = r.term || r.quarter || "Unassigned Term";
+    if (r.quarter) {
+      if (!quarterMap[r.quarter]) {
+        quarterMap[r.quarter] = r.term || r.quarter;
+      }
     }
   });
 
-  // Sort quarters descending to ensure the newest term is at index 0
-  const sortedQuarters = Object.keys(termMap).sort((a, b) => b.localeCompare(a));
-  const defaultQuarter = sortedQuarters[0] || "";
+  // Sort Quarters descending (e.g., "2026-Q3", "2026-Q2", "2026-Q1")
+  const sortedQuarters = Object.keys(quarterMap).sort((a, b) => b.localeCompare(a));
+  const defaultQuarter = sortedQuarters.length > 0 ? sortedQuarters[0] : "";
 
-  const optionsHtml = sortedQuarters.map(q => 
-    `<option value="${escapeHtml(q)}">${escapeHtml(termMap[q])}</option>`
-  ).join("");
+  let optionsHtml = "";
+  if (sortedQuarters.length > 0) {
+    optionsHtml = sortedQuarters.map(q => 
+      `<option value="${escapeHtml(q)}">${escapeHtml(quarterMap[q])}</option>`
+    ).join("");
+  } else {
+    optionsHtml = `<option value="">Semua Term</option>`;
+  }
 
   app.innerHTML = `
     <div class="topbar topbar-detail">
@@ -346,7 +352,7 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
 
       <div class="term-label">
         <select id="term-select" class="term-select-dropdown">
-          ${optionsHtml || '<option value="">Term Tidak Tersedia</option>'}
+          ${optionsHtml}
         </select>
       </div>
 
@@ -378,7 +384,6 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
 
   window._lp3AllAttendance = attendance;
 
-  // Initialize view for selected term/quarter
   const termSelect = document.getElementById("term-select");
   if (termSelect) {
     termSelect.addEventListener("change", function() {
@@ -389,9 +394,13 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
   switchTerm(defaultQuarter);
 }
 
-function switchTerm(quarterKey) {
+function switchTerm(selectedQuarter) {
   const allAttendance = window._lp3AllAttendance || [];
-  const filteredAttendance = allAttendance.filter(r => (r.quarter || "Unassigned") === quarterKey);
+
+  // Filter attendance strictly by selected quarter (or show all if no quarter selected)
+  const filteredAttendance = selectedQuarter 
+    ? allAttendance.filter(r => r.quarter === selectedQuarter)
+    : allAttendance;
 
   const classMap = {};
   filteredAttendance.forEach(r => {
@@ -438,6 +447,16 @@ function lp3Render(key) {
 
   const isMakeUpTab = key === "__makeup__";
   let rows          = isMakeUpTab ? makeupAll : (key === "__all__" ? all : (classMap[key] || []));
+
+  // Sort rows newest to oldest
+  rows.sort((a, b) => {
+    const dateA = a.rawDate || a.dateStr || "";
+    const dateB = b.rawDate || b.dateStr || "";
+    if (!dateA && !dateB) return 0;
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    return dateB.localeCompare(dateA);
+  });
 
   const metricsEl = document.getElementById("lp3-metrics");
   const titleEl   = document.getElementById("lp3-att-title");
@@ -592,6 +611,8 @@ function formatGreetingParentName(name) {
   if (["mom","dad","mama","papa","bunda","ayah","ibu","mr","mrs"].some(p => lower.startsWith(p))) return name;
   return `Mom/Dad ${name}`;
 }
+
+function cleanCell(v) { return (v === null || v === undefined) ? "" : String(v).trim(); }
 
 function parseExpiryDate(value) {
   if (!value || value === "-" || value.toLowerCase() === "not yet renewal" || value.toLowerCase() === "xxxxx" || value.startsWith("#")) return null;
