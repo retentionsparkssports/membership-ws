@@ -295,7 +295,6 @@ function studentCard(student, phone) {
 // ============================================================
 // LP3: STUDENT DETAIL
 // ============================================================
-
 function renderDetailPage(student, attendance, waLink, sarName, phone) {
   document.body.className = "dashboard-page";
   const centerText = student.center;
@@ -350,10 +349,23 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
         ${createExpiryBanner(student.expiryDate)}
       </div>
 
-      <div class="term-label">
-        <select id="term-select" class="term-select-dropdown">
-          ${optionsHtml}
-        </select>
+      <!-- CENTERED DROPDOWN MATCHING OLD TERM-BADGE STYLE -->
+      <div class="term-label" style="text-align: center; margin: 12px 0;">
+        <div class="term-badge-wrap" style="display: inline-block; position: relative;">
+          <select id="term-select" class="term-badge" style="
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            cursor: pointer;
+            text-align-last: center;
+            padding-right: 28px;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%23ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+          ">
+            ${optionsHtml}
+          </select>
+        </div>
       </div>
 
       <div class="class-tabs-wrap" id="class-tabs-container"></div>
