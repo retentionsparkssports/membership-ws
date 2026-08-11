@@ -1034,3 +1034,64 @@ button:disabled {
     font-size: 12px;
   }
 }
+
+
+/* ======================== Additional Here ===================== */
+
+/* Container for centering */
+.term-label {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 16px 0;
+}
+
+.term-dropdown-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Styled select pill */
+.term-dropdown {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: #10b981; /* Matches green tab color; change to #1e293b for dark gray/navy if preferred */
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 36px 10px 18px;
+  border-radius: 9999px;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.term-dropdown:hover {
+  opacity: 0.9;
+}
+
+.term-dropdown:focus {
+  outline: 2px solid #059669;
+}
+
+/* Custom dropdown arrow icon */
+.dropdown-arrow {
+  position: absolute;
+  right: 14px;
+  pointer-events: none;
+  color: #ffffff;
+  font-size: 10px;
+}
+
+/* Options menu styling inside expanded list */
+.term-dropdown option {
+  background-color: #ffffff;
+  color: #1f2937;
+  font-weight: 500;
+  padding: 8px;
+}
