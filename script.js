@@ -138,7 +138,9 @@ async function fetchAttendanceForStudent(studentId) {
       makeupReason:  row.makeup_reason,
       type:          row.type,
       isOldClass:    Boolean(row.is_old_class),
-      previousClass: row.previous_class
+      previousClass: row.previous_class,
+      term:          cleanCell(row.term),
+      quarter:       cleanCell(row.quarter)
     }));
   } catch (e) {
     console.error("Failed to fetch attendance for student", studentId, e);
@@ -293,7 +295,6 @@ function studentCard(student, phone) {
 // ============================================================
 // LP3: STUDENT DETAIL
 // ============================================================
-
 function renderDetailPage(student, attendance, waLink, sarName, phone) {
   document.body.className = "dashboard-page";
   const centerText = student.center;
@@ -301,28 +302,28 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
   const waTarget   = waLink || SUPPORT_WA;
   const waLabel    = waLink ? "Hubungi Student Advisor" : `Hubungi ${SUPPORT_LABEL}`;
 
-  const classMap = {};
-  const classOldFlag = {};
+  // Build mapping of Quarter -> Term Display Label
+  const quarterMap = {};
   attendance.forEach(r => {
-    const isMakeUp = r.type && r.type.toLowerCase() === "make up";
-    let tabLabel = isMakeUp ? (r.previousClass ? getClassLabel(r.previousClass) : null) : getClassLabel(r.class_);
-    
-    if (tabLabel) {
-      if (!classMap[tabLabel]) { classMap[tabLabel] = []; classOldFlag[tabLabel] = true; }
-      classMap[tabLabel].push(r);
-      if (!r.isOldClass) classOldFlag[tabLabel] = false;
+    if (r.quarter) {
+      if (!quarterMap[r.quarter]) {
+        quarterMap[r.quarter] = r.term || r.quarter;
+      }
     }
   });
-  const classKeys = Object.keys(classMap);
-  const makeupAll = attendance.filter(r => r.type && r.type.toLowerCase() === "make up");
-  const tabsHtml  = [
-    `<button class="class-tab active" data-key="__all__">Semua</button>`,
-    ...classKeys.map(k => {
-      const isOld = classOldFlag[k];
-      return `<button class="class-tab${isOld ? ' class-tab--old' : ''}" data-key="${escapeHtml(k)}" data-old="${isOld}">${escapeHtml(k)}${isOld ? ' <span class="old-badge">Kelas Lama</span>' : ''}</button>`;
-    }),
-    makeupAll.length ? `<button class="class-tab class-tab--makeup" data-key="__makeup__">Make Up</button>` : ""
-  ].join("");
+
+  // Sort Quarters descending (e.g., "2026-Q3", "2026-Q2", "2026-Q1")
+  const sortedQuarters = Object.keys(quarterMap).sort((a, b) => b.localeCompare(a));
+  const defaultQuarter = sortedQuarters.length > 0 ? sortedQuarters[0] : "";
+
+  let optionsHtml = "";
+  if (sortedQuarters.length > 0) {
+    optionsHtml = sortedQuarters.map(q => 
+      `<option value="${escapeHtml(q)}">${escapeHtml(quarterMap[q])}</option>`
+    ).join("");
+  } else {
+    optionsHtml = `<option value="">Semua Term</option>`;
+  }
 
   app.innerHTML = `
     <div class="topbar topbar-detail">
@@ -348,11 +349,17 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
         ${createExpiryBanner(student.expiryDate)}
       </div>
 
+      <!-- CENTERED DROPDOWN MATCHING OLD TERM-BADGE STYLE -->
       <div class="term-label">
-        <span class="term-badge">Summer Term 2026</span>
+        <div class="term-dropdown-container">
+          <select id="term-select" class="term-dropdown">
+            ${optionsHtml}
+          </select>
+          <span class="dropdown-arrow">▼</span>
+        </div>
       </div>
 
-      <div class="class-tabs-wrap">${tabsHtml}</div>
+      <div class="class-tabs-wrap" id="class-tabs-container"></div>
       <div class="metrics-row" id="lp3-metrics"></div>
 
       <div class="att-card">
@@ -378,32 +385,81 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
     </div>
   `;
 
-  window._lp3All          = attendance;
-  window._lp3MakeupAll    = makeupAll;
-  window._lp3ClassMap     = classMap;
-  window._lp3ClassOldFlag = classOldFlag;
+  window._lp3AllAttendance = attendance;
 
-  setTimeout(function() {
-    document.querySelectorAll(".class-tab").forEach(function(btn) {
+  const termSelect = document.getElementById("term-select");
+  if (termSelect) {
+    termSelect.addEventListener("change", function() {
+      switchTerm(this.value);
+    });
+  }
+
+  switchTerm(defaultQuarter);
+}
+
+function switchTerm(selectedQuarter) {
+  const allAttendance = window._lp3AllAttendance || [];
+
+  // Filter attendance strictly by selected quarter (or show all if no quarter selected)
+  const filteredAttendance = selectedQuarter 
+    ? allAttendance.filter(r => r.quarter === selectedQuarter)
+    : allAttendance;
+
+  const classMap = {};
+  filteredAttendance.forEach(r => {
+    const isMakeUp = r.type && r.type.toLowerCase() === "make up";
+    let tabLabel = isMakeUp ? (r.previousClass ? getClassLabel(r.previousClass) : null) : getClassLabel(r.class_);
+    
+    if (tabLabel) {
+      if (!classMap[tabLabel]) classMap[tabLabel] = [];
+      classMap[tabLabel].push(r);
+    }
+  });
+
+  const classKeys = Object.keys(classMap);
+  const makeupAll = filteredAttendance.filter(r => r.type && r.type.toLowerCase() === "make up");
+  
+  const tabsContainer = document.getElementById("class-tabs-container");
+  if (tabsContainer) {
+    tabsContainer.innerHTML = [
+      `<button class="class-tab active" data-key="__all__">Semua</button>`,
+      ...classKeys.map(k => `<button class="class-tab" data-key="${escapeHtml(k)}">${escapeHtml(k)}</button>`),
+      makeupAll.length ? `<button class="class-tab class-tab--makeup" data-key="__makeup__">Make Up</button>` : ""
+    ].join("");
+
+    tabsContainer.querySelectorAll(".class-tab").forEach(btn => {
       btn.addEventListener("click", function () {
-        document.querySelectorAll(".class-tab").forEach(function(t) { t.classList.remove("active"); });
+        tabsContainer.querySelectorAll(".class-tab").forEach(t => t.classList.remove("active"));
         this.classList.add("active");
         lp3Render(this.getAttribute("data-key"));
       });
     });
-    lp3Render("__all__");
-  }, 0);
+  }
+
+  window._lp3CurrentTermAll = filteredAttendance;
+  window._lp3ClassMap       = classMap;
+  window._lp3MakeupAll      = makeupAll;
+
+  lp3Render("__all__");
 }
 
 function lp3Render(key) {
-  const all          = window._lp3All || [];
-  const makeupAll    = window._lp3MakeupAll || [];
-  const classMap     = window._lp3ClassMap || {};
-  const classOldFlag = window._lp3ClassOldFlag || {};
+  const all       = window._lp3CurrentTermAll || [];
+  const makeupAll = window._lp3MakeupAll || [];
+  const classMap  = window._lp3ClassMap || {};
 
   const isMakeUpTab = key === "__makeup__";
   let rows          = isMakeUpTab ? makeupAll : (key === "__all__" ? all : (classMap[key] || []));
-  const isOldTab    = !isMakeUpTab && key !== "__all__" && classOldFlag[key];
+
+  // Sort rows newest to oldest
+  rows.sort((a, b) => {
+    const dateA = a.rawDate || a.dateStr || "";
+    const dateB = b.rawDate || b.dateStr || "";
+    if (!dateA && !dateB) return 0;
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    return dateB.localeCompare(dateA);
+  });
 
   const metricsEl = document.getElementById("lp3-metrics");
   const titleEl   = document.getElementById("lp3-att-title");
@@ -449,20 +505,19 @@ function lp3Render(key) {
   }).length;
   const countMakeUp     = makeupRows.length;
 
-  const oldCls = isOldTab ? " metric-chip--old" : "";
   if (metricsEl) metricsEl.innerHTML = `
     <div class="metric-chips">
-      <div class="metric-chip${oldCls}">
+      <div class="metric-chip">
         <div class="mc-icon mc-green">✓</div>
         <div class="mc-num green">${countHadir}</div>
         <div class="mc-lbl">Hadir</div>
       </div>
-      <div class="metric-chip${oldCls}">
+      <div class="metric-chip">
         <div class="mc-icon mc-red">✕</div>
         <div class="mc-num red">${countTidakHadir}</div>
         <div class="mc-lbl">Tidak Hadir</div>
       </div>
-      <div class="metric-chip${oldCls}">
+      <div class="metric-chip">
         <div class="mc-icon mc-purple">↺</div>
         <div class="mc-num purple">${countMakeUp}</div>
         <div class="mc-lbl">Make Up</div>
@@ -549,7 +604,7 @@ function getStatusBadge(status) {
   if (s === "present")  return { badge: "badge-present", dot: "dot-present" };
   if (s === "make up")  return { badge: "badge-makeup",  dot: "dot-makeup"  };
   if (s === "absent")   return { badge: "badge-absent",  dot: "dot-absent"  };
-  if (s === "leave" || s === "izin" || s === "sakit") return { badge: "badge-absent", dot: "dot-absent" };
+  if (s === "leave" || s === "izin" || s === "sakit") return { badge: "badge-leave", dot: "dot-leave" };
   return { badge: "badge-present", dot: "dot-present" };
 }
 
@@ -559,6 +614,8 @@ function formatGreetingParentName(name) {
   if (["mom","dad","mama","papa","bunda","ayah","ibu","mr","mrs"].some(p => lower.startsWith(p))) return name;
   return `Mom/Dad ${name}`;
 }
+
+function cleanCell(v) { return (v === null || v === undefined) ? "" : String(v).trim(); }
 
 function parseExpiryDate(value) {
   if (!value || value === "-" || value.toLowerCase() === "not yet renewal" || value.toLowerCase() === "xxxxx" || value.startsWith("#")) return null;
