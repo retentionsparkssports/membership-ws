@@ -16,6 +16,24 @@ let ALL_STUDENTS   = [];
 let ALL_ATTENDANCE = [];
 let DATA_READY     = false;
 let DATA_ERROR     = "";
+let ATTENDANCE_ERROR = false;
+
+function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
+
+// Retries an async RPC-calling function a few times before giving up,
+// so a single flaky/slow network hiccup doesn't silently render as "no data".
+async function withRetry(fn, attempts = 3, delayMs = 600) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      if (i < attempts - 1) await sleep(delayMs * (i + 1));
+    }
+  }
+  throw lastErr;
+}
 
 // ============================================================
 // ICONS
@@ -45,6 +63,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     const student = ALL_STUDENTS[0];
     await fetchAttendanceForStudent(studentId);
 
+    if (ATTENDANCE_ERROR) {
+      renderAttendanceErrorPage(studentId, phone);
+      return;
+    }
+
     renderDetailPage(student, ALL_ATTENDANCE, student.waLink, student.sarName, phone);
     return;
   }
@@ -70,11 +93,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 async function loadStudentsByPhone(phone) {
   try {
-    const { data, error } = await supabaseClient
-      .rpc('get_students_by_phone', { search_phone: phone });
+    const data = await withRetry(async () => {
+      const { data, error } = await supabaseClient
+        .rpc('get_students_by_phone', { search_phone: phone });
+      if (error) throw error;
+      return data;
+    });
 
-    if (error) throw error;
-    
     ALL_STUDENTS = (data || []).map(row => ({
       center:        row.center,
       studentId:     row.student_id,
@@ -96,11 +121,13 @@ async function loadStudentsByPhone(phone) {
 
 async function loadStudentById(studentId) {
   try {
-    const { data, error } = await supabaseClient
-      .rpc('get_student_by_id', { search_id: studentId });
+    const data = await withRetry(async () => {
+      const { data, error } = await supabaseClient
+        .rpc('get_student_by_id', { search_id: studentId });
+      if (error) throw error;
+      return data;
+    });
 
-    if (error) throw error;
-    
     ALL_STUDENTS = (data || []).map(row => ({
       center:        row.center,
       studentId:     row.student_id,
@@ -121,13 +148,16 @@ async function loadStudentById(studentId) {
 }
 
 async function fetchAttendanceForStudent(studentId) {
+  ATTENDANCE_ERROR = false;
   try {
-    const { data, error } = await supabaseClient
-      .rpc('get_attendance_by_student_id', { search_id: studentId });
+    const rows = await withRetry(async () => {
+      const { data, error } = await supabaseClient
+        .rpc('get_attendance_by_student_id', { search_id: studentId });
+      if (error) throw error;
+      return data;
+    });
 
-    if (error) throw error;
-    
-    ALL_ATTENDANCE = (data || []).map(row => ({
+    ALL_ATTENDANCE = (rows || []).map(row => ({
       studentId:     row.student_id,
       studentName:   row.student_name,
       center:        row.center,
@@ -144,6 +174,8 @@ async function fetchAttendanceForStudent(studentId) {
     }));
   } catch (e) {
     console.error("Failed to fetch attendance for student", studentId, e);
+    ALL_ATTENDANCE = [];
+    ATTENDANCE_ERROR = true;
   }
 }
 
@@ -236,6 +268,37 @@ function renderErrorPage(message) {
       <a class="link-button" onclick="backToHome()">← Kembali</a>
     </div>
   `;
+}
+
+function renderAttendanceErrorPage(studentId, phone) {
+  document.body.className = "center-page";
+  app.innerHTML = `
+    <div class="card">
+      <div class="icon warning">⚠️</div>
+      <h2 class="headline">Data Attendance Belum Bisa Dimuat</h2>
+      <p class="error-text">Kami sempat gagal memuat riwayat kehadiran. Ini biasanya karena koneksi yang lambat.</p>
+      <br>
+      <button id="retry-btn" onclick="retryAttendanceLoad('${escapeHtml(studentId)}')">Coba Lagi</button>
+      <br><br>
+      <a class="link-button" href="?phone=${encodeURIComponent(phone || "")}">← Kembali ke daftar anak</a>
+    </div>
+  `;
+}
+
+async function retryAttendanceLoad(studentId) {
+  const btn = document.getElementById("retry-btn");
+  if (btn) { btn.textContent = "Memuat ulang..."; btn.disabled = true; }
+
+  const params = new URLSearchParams(window.location.search);
+  const phone  = params.get("phone");
+
+  await fetchAttendanceForStudent(studentId);
+  if (ATTENDANCE_ERROR) {
+    renderAttendanceErrorPage(studentId, phone);
+    return;
+  }
+  const student = ALL_STUDENTS[0];
+  renderDetailPage(student, ALL_ATTENDANCE, student.waLink, student.sarName, phone);
 }
 
 // ============================================================
