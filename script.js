@@ -14,7 +14,6 @@ const app = document.getElementById("app");
 
 let ALL_STUDENTS   = [];
 let ALL_ATTENDANCE = [];
-let DATA_READY     = false;
 let DATA_ERROR     = "";
 let ATTENDANCE_ERROR = false;
 
@@ -112,7 +111,6 @@ async function loadStudentsByPhone(phone) {
       sarName:       row.sar_name,
       waLink:        row.wa_link
     }));
-    DATA_READY = true;
   } catch (e) {
     DATA_ERROR = "Data membership belum bisa dimuat. Silakan coba beberapa saat lagi atau hubungi " + SUPPORT_LABEL + " untuk bantuan.";
     console.error(e);
@@ -140,7 +138,6 @@ async function loadStudentById(studentId) {
       sarName:       row.sar_name,
       waLink:        row.wa_link
     }));
-    DATA_READY = true;
   } catch (e) {
     DATA_ERROR = "Data membership belum bisa dimuat. Silakan coba beberapa saat lagi atau hubungi " + SUPPORT_LABEL + " untuk bantuan.";
     console.error(e);
@@ -164,11 +161,11 @@ async function fetchAttendanceForStudent(studentId) {
       rawDate:       row.raw_date,
       dateStr:       row.date_str || formatDisplayDate(row.raw_date),
       class_:        row.class_,
-      status:        row.status,
+      attendance:    cleanCell(row.attendance),
       makeupReason:  row.makeup_reason,
-      type:          row.type,
-      isOldClass:    Boolean(row.is_old_class),
+      statusClass:   cleanCell(row.status_class),
       previousClass: row.previous_class,
+      previousDateStr: row.previous_date_str,
       term:          cleanCell(row.term),
       quarter:       cleanCell(row.quarter)
     }));
@@ -362,8 +359,8 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
   document.body.className = "dashboard-page";
   const centerText = student.center;
   const ph         = encodeURIComponent(phone || "");
-  const waTarget   = waLink || SUPPORT_WA;
-  const waLabel    = waLink ? "Hubungi Student Advisor" : `Hubungi ${SUPPORT_LABEL}`;
+  const waTarget   = getSafeWhatsAppLink(waLink);
+  const waLabel    = waTarget !== SUPPORT_WA ? "Hubungi Student Advisor" : `Hubungi ${SUPPORT_LABEL}`;
 
   // Build mapping of Quarter -> Term Display Label
   const quarterMap = {};
@@ -430,14 +427,13 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
           <div class="att-title" id="lp3-att-title">Riwayat Kehadiran</div>
         </div>
         <div class="att-legend">
-          <span class="leg-item"><span class="att-dot-inline dot-present"></span>Hadir</span>
-          <span class="leg-item"><span class="att-dot-inline dot-makeup"></span>Make up</span>
-          <span class="leg-item"><span class="att-dot-inline dot-absent"></span>Absen</span>
+          <span class="leg-item"><span class="att-dot-inline dot-present"></span>Present</span>
+          <span class="leg-item"><span class="att-dot-inline dot-absent"></span>Absent</span>
           <span class="leg-item"><span class="att-dot-inline dot-leave"></span>Izin</span>
         </div>
         <div class="att-table-wrap">
           <table class="att-table">
-            <thead><tr><th>Tanggal</th><th>Kelas</th><th>Status</th></tr></thead>
+            <thead id="lp3-table-head"><tr><th>Tanggal</th><th>Kelas</th><th>Kehadiran</th></tr></thead>
             <tbody id="lp3-tbody"></tbody>
           </table>
         </div>
@@ -462,31 +458,32 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
 
 function switchTerm(selectedQuarter) {
   const allAttendance = window._lp3AllAttendance || [];
-
-  // Filter attendance strictly by selected quarter (or show all if no quarter selected)
   const filteredAttendance = selectedQuarter 
     ? allAttendance.filter(r => r.quarter === selectedQuarter)
     : allAttendance;
 
+  // Main-class tabs exist only for classes with a Regular Class record.
+  // Once a tab exists, it includes that class's Regular, Trial, and Make Up records.
   const classMap = {};
   filteredAttendance.forEach(r => {
-    const isMakeUp = r.type && r.type.toLowerCase() === "make up";
-    let tabLabel = isMakeUp ? (r.previousClass ? getClassLabel(r.previousClass) : null) : getClassLabel(r.class_);
-    
-    if (tabLabel) {
-      if (!classMap[tabLabel]) classMap[tabLabel] = [];
-      classMap[tabLabel].push(r);
+    if (isRegularClass(r.statusClass)) {
+      const classLabel = getClassLabel(r.class_);
+      if (classLabel && !classMap[classLabel]) {
+        classMap[classLabel] = filteredAttendance.filter(row => getClassLabel(row.class_) === classLabel);
+      }
     }
   });
 
   const classKeys = Object.keys(classMap);
-  const makeupAll = filteredAttendance.filter(r => r.type && r.type.toLowerCase() === "make up");
+  const trialAll  = filteredAttendance.filter(r => isTrialChangeClass(r.statusClass));
+  const makeupAll = filteredAttendance.filter(r => isMakeUpClass(r.statusClass));
   
   const tabsContainer = document.getElementById("class-tabs-container");
   if (tabsContainer) {
     tabsContainer.innerHTML = [
       `<button class="class-tab active" data-key="__all__">Semua</button>`,
       ...classKeys.map(k => `<button class="class-tab" data-key="${escapeHtml(k)}">${escapeHtml(k)}</button>`),
+      trialAll.length ? `<button class="class-tab class-tab--trial" data-key="__trial__">Trial</button>` : "",
       makeupAll.length ? `<button class="class-tab class-tab--makeup" data-key="__makeup__">Make Up</button>` : ""
     ].join("");
 
@@ -501,6 +498,7 @@ function switchTerm(selectedQuarter) {
 
   window._lp3CurrentTermAll = filteredAttendance;
   window._lp3ClassMap       = classMap;
+  window._lp3TrialAll       = trialAll;
   window._lp3MakeupAll      = makeupAll;
 
   lp3Render("__all__");
@@ -508,14 +506,12 @@ function switchTerm(selectedQuarter) {
 
 function lp3Render(key) {
   const all       = window._lp3CurrentTermAll || [];
-  const makeupAll = window._lp3MakeupAll || [];
   const classMap  = window._lp3ClassMap || {};
-
+  const trialAll  = window._lp3TrialAll || [];
+  const makeupAll = window._lp3MakeupAll || [];
   const isMakeUpTab = key === "__makeup__";
-  let rows          = isMakeUpTab ? makeupAll : (key === "__all__" ? all : (classMap[key] || []));
-
-  // Sort rows newest to oldest
-  rows.sort((a, b) => {
+  const isTrialTab  = key === "__trial__";
+  const rows = (isMakeUpTab ? makeupAll : isTrialTab ? trialAll : (key === "__all__" ? all : (classMap[key] || []))).slice().sort((a, b) => {
     const dateA = a.rawDate || a.dateStr || "";
     const dateB = b.rawDate || b.dateStr || "";
     if (!dateA && !dateB) return 0;
@@ -526,59 +522,37 @@ function lp3Render(key) {
 
   const metricsEl = document.getElementById("lp3-metrics");
   const titleEl   = document.getElementById("lp3-att-title");
+  const tableHead = document.getElementById("lp3-table-head");
   const tbody     = document.getElementById("lp3-tbody");
   if (!tbody) return;
 
-  if (isMakeUpTab) {
-    const countMU = makeupAll.length;
-    if (metricsEl) metricsEl.innerHTML = `
-      <div class="metric-chips">
-        <div class="metric-chip metric-chip--makeup">
-          <div class="mc-icon mc-purple">↺</div>
-          <div class="mc-num purple">${countMU}</div>
-          <div class="mc-lbl">Total Make Up</div>
-        </div>
-      </div>`;
-    if (titleEl) titleEl.textContent = "Riwayat Make Up";
-
-    if (!makeupAll.length) {
-      tbody.innerHTML = `<tr><td colspan="3" class="att-empty">Belum ada data make up.</td></tr>`;
-      return;
-    }
-    tbody.innerHTML = makeupAll.map(r => {
-      const cls            = simplifyClassName(r.class_);
-      const { badge, dot } = getStatusBadge(r.status);
-      const reasonTag      = r.makeupReason ? `<span class="reason-tag">${escapeHtml(r.makeupReason)}</span>` : "";
-      const prevTag        = r.previousClass ? `<span class="prev-class-tag">↩ ${escapeHtml(simplifyClassName(r.previousClass))}</span>` : "";
-      return `<tr>
-        <td><span class="att-dot-inline ${dot}"></span>${escapeHtml(r.dateStr || "-")}</td>
-        <td>${escapeHtml(cls)}${reasonTag}${prevTag}</td>
-        <td><span class="att-badge ${badge}">${escapeHtml(r.status)}</span></td>
-      </tr>`;
-    }).join("");
-    return;
-  }
-
-  const regularRows     = rows.filter(r => r.type === "Regular");
-  const makeupRows      = rows.filter(r => r.type === "Make Up");
-  const countHadir      = regularRows.filter(r => r.status.toLowerCase() === "present").length;
-  const countTidakHadir = regularRows.filter(r => {
-    const s = r.status.toLowerCase();
-    return s === "absent" || s === "leave" || s === "sakit" || s === "izin";
-  }).length;
-  const countMakeUp     = makeupRows.length;
+  const countPresent = rows.filter(r => cleanCell(r.attendance) === "Present").length;
+  const countIzin    = rows.filter(r => isLeaveAttendance(r.attendance)).length;
+  const countAbsent  = rows.length - countPresent - countIzin;
+  const countTrial   = rows.filter(r => isTrialChangeClass(r.statusClass)).length;
+  const countMakeUp  = rows.filter(r => isMakeUpClass(r.statusClass)).length;
 
   if (metricsEl) metricsEl.innerHTML = `
     <div class="metric-chips">
       <div class="metric-chip">
         <div class="mc-icon mc-green">✓</div>
-        <div class="mc-num green">${countHadir}</div>
-        <div class="mc-lbl">Hadir</div>
+        <div class="mc-num green">${countPresent}</div>
+        <div class="mc-lbl">Present</div>
       </div>
       <div class="metric-chip">
         <div class="mc-icon mc-red">✕</div>
-        <div class="mc-num red">${countTidakHadir}</div>
-        <div class="mc-lbl">Tidak Hadir</div>
+        <div class="mc-num red">${countAbsent}</div>
+        <div class="mc-lbl">Absent</div>
+      </div>
+      <div class="metric-chip">
+        <div class="mc-icon mc-yellow">!</div>
+        <div class="mc-num yellow">${countIzin}</div>
+        <div class="mc-lbl">Izin</div>
+      </div>
+      <div class="metric-chip">
+        <div class="mc-icon mc-blue">↗</div>
+        <div class="mc-num blue">${countTrial}</div>
+        <div class="mc-lbl">Trial</div>
       </div>
       <div class="metric-chip">
         <div class="mc-icon mc-purple">↺</div>
@@ -587,21 +561,31 @@ function lp3Render(key) {
       </div>
     </div>`;
 
-  if (titleEl) titleEl.textContent = key === "__all__" ? "Riwayat Kehadiran" : "Riwayat Kehadiran · " + key;
+  if (titleEl) titleEl.textContent = isMakeUpTab ? "Riwayat Make Up" : isTrialTab ? "Riwayat Trial" : (key === "__all__" ? "Riwayat Kehadiran" : "Riwayat Kehadiran · " + key);
+  if (tableHead) tableHead.innerHTML = isMakeUpTab
+    ? `<tr><th>Tanggal</th><th>Kelas</th><th>Alasan</th></tr>`
+    : `<tr><th>Tanggal</th><th>Kelas</th><th>Kehadiran</th></tr>`;
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="3" class="att-empty">Belum ada data attendance untuk periode ini.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="3" class="att-empty">Belum ada data attendance untuk pilihan ini.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = rows.map(r => {
-    const cls            = simplifyClassName(r.class_);
-    const { badge, dot } = getStatusBadge(r.status);
-    const reasonTag      = r.makeupReason && r.makeupReason !== "Regular Class" ? `<span class="reason-tag">${escapeHtml(r.makeupReason)}</span>` : "";
+    const cls = simplifyClassName(r.class_);
+    const attendanceLabel = isLeaveAttendance(r.attendance) ? "Izin" : cleanCell(r.attendance);
+    const { badge, dot } = getStatusBadge(attendanceLabel);
+    const typeTag = (isMakeUpClass(r.statusClass) || isTrialChangeClass(r.statusClass)) && r.statusClass
+      ? `<span class="reason-tag">${escapeHtml(r.statusClass)}</span>` : "";
+    const previousInfo = (isMakeUpClass(r.statusClass) || isTrialChangeClass(r.statusClass))
+      ? renderPreviousClassInfo(r.previousDateStr, r.previousClass) : "";
+    const finalCell = isMakeUpTab
+      ? escapeHtml(r.makeupReason || "-")
+      : `<span class="att-badge ${badge}">${escapeHtml(attendanceLabel)}</span>`;
     return `<tr>
       <td><span class="att-dot-inline ${dot}"></span>${escapeHtml(r.dateStr || "-")}</td>
-      <td>${escapeHtml(cls)}${reasonTag}</td>
-      <td><span class="att-badge ${badge}">${escapeHtml(r.status)}</span></td>
+      <td>${escapeHtml(cls)}${typeTag}${previousInfo}</td>
+      <td>${finalCell}</td>
     </tr>`;
   }).join("");
 }
@@ -662,13 +646,40 @@ function simplifyClassName(raw) {
   return raw;
 }
 
-function getStatusBadge(status) {
-  const s = status ? status.toLowerCase() : "";
-  if (s === "present")  return { badge: "badge-present", dot: "dot-present" };
-  if (s === "make up")  return { badge: "badge-makeup",  dot: "dot-makeup"  };
-  if (s === "absent")   return { badge: "badge-absent",  dot: "dot-absent"  };
-  if (s === "leave" || s === "izin" || s === "sakit") return { badge: "badge-leave", dot: "dot-leave" };
-  return { badge: "badge-present", dot: "dot-present" };
+function isRegularClass(statusClass) {
+  return normalizeStatusClass(statusClass).startsWith("regular class");
+}
+
+function isTrialChangeClass(statusClass) {
+  return normalizeStatusClass(statusClass).startsWith("trial change class");
+}
+
+function isMakeUpClass(statusClass) {
+  return normalizeStatusClass(statusClass).startsWith("make up class");
+}
+
+function normalizeStatusClass(statusClass) {
+  return cleanCell(statusClass)
+    .toLowerCase()
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isLeaveAttendance(attendance) {
+  return cleanCell(attendance).includes("Leave");
+}
+
+function renderPreviousClassInfo(previousDateStr, previousClass) {
+  const previousDetails = simplifyClassName(previousClass);
+  if (!previousDateStr && !previousDetails) return "";
+  return `<span class="prev-class-tag">↩ ${escapeHtml([previousDateStr, previousDetails].filter(Boolean).join(" · "))}</span>`;
+}
+
+function getStatusBadge(attendanceLabel) {
+  if (attendanceLabel === "Present") return { badge: "badge-present", dot: "dot-present" };
+  if (attendanceLabel === "Izin") return { badge: "badge-leave", dot: "dot-leave" };
+  return { badge: "badge-absent", dot: "dot-absent" };
 }
 
 function formatGreetingParentName(name) {
@@ -679,6 +690,15 @@ function formatGreetingParentName(name) {
 }
 
 function cleanCell(v) { return (v === null || v === undefined) ? "" : String(v).trim(); }
+
+function getSafeWhatsAppLink(link) {
+  try {
+    const url = new URL(link);
+    return url.protocol === "https:" && url.hostname === "wa.me" ? url.href : SUPPORT_WA;
+  } catch {
+    return SUPPORT_WA;
+  }
+}
 
 function parseExpiryDate(value) {
   if (!value || value === "-" || value.toLowerCase() === "not yet renewal" || value.toLowerCase() === "xxxxx" || value.startsWith("#")) return null;

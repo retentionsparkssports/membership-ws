@@ -922,6 +922,19 @@ button:disabled {
   border-color: #534AB7;
 }
 
+.class-tab--trial {
+  background: var(--blue-bg);
+  color: var(--blue);
+  border-color: #9bd3ff;
+  font-weight: 500;
+}
+
+.class-tab--trial.active {
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+}
+
 .class-tab--old.active .old-badge {
   background: rgba(255,255,255,0.25);
   color: rgba(255,255,255,0.85);
@@ -973,6 +986,8 @@ button:disabled {
 
 .mc-green  { background: var(--green-bg); color: var(--green); }
 .mc-red    { background: var(--red-bg);   color: var(--red);   }
+.mc-yellow { background: var(--amber-bg); color: var(--amber); }
+.mc-blue   { background: var(--blue-bg);  color: var(--blue);  }
 .mc-purple { background: #EEEDFE;         color: #7F77DD;      }
 
 .mc-num {
@@ -983,6 +998,8 @@ button:disabled {
 
 .mc-num.green  { color: var(--green); }
 .mc-num.red    { color: var(--red);   }
+.mc-num.yellow { color: var(--amber); }
+.mc-num.blue   { color: var(--blue);  }
 .mc-num.purple { color: #7F77DD;      }
 
 .mc-lbl {
