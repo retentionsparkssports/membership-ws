@@ -158,20 +158,19 @@ async function fetchAttendanceForStudent(studentId) {
     });
 
     ALL_ATTENDANCE = (rows || []).map(row => ({
-      studentId:       row.student_id,
-      studentName:     row.student_name,
-      center:          row.center,
-      rawDate:         row.raw_date,
-      dateStr:         row.date_str || formatDisplayDate(row.raw_date),
-      class_:          row.class_,
-      attendance:      cleanCell(row.attendance),
-      statusClass:     cleanCell(row.status_class),
-      makeupReason:    row.makeup_reason,
-      isOldClass:      Boolean(row.is_old_class),
-      previousClass:   row.previous_class,
-      previousDateStr: row.previous_date_str,
-      term:            cleanCell(row.term),
-      quarter:         cleanCell(row.quarter)
+      studentId:     row.student_id,
+      studentName:   row.student_name,
+      center:        row.center,
+      rawDate:       row.raw_date,
+      dateStr:       row.date_str || formatDisplayDate(row.raw_date),
+      class_:        row.class_,
+      status:        row.status,
+      makeupReason:  row.makeup_reason,
+      type:          row.type,
+      isOldClass:    Boolean(row.is_old_class),
+      previousClass: row.previous_class,
+      term:          cleanCell(row.term),
+      quarter:       cleanCell(row.quarter)
     }));
   } catch (e) {
     console.error("Failed to fetch attendance for student", studentId, e);
@@ -465,36 +464,30 @@ function switchTerm(selectedQuarter) {
   const allAttendance = window._lp3AllAttendance || [];
 
   // Filter attendance strictly by selected quarter (or show all if no quarter selected)
-  const filteredAttendance = selectedQuarter
+  const filteredAttendance = selectedQuarter 
     ? allAttendance.filter(r => r.quarter === selectedQuarter)
     : allAttendance;
 
-  // Group every row (regular, trial, make up) by its own class label.
-  const classGroups = {};
+  const classMap = {};
   filteredAttendance.forEach(r => {
-    const label = getClassLabel(r.class_);
-    if (!label) return;
-    if (!classGroups[label]) classGroups[label] = [];
-    classGroups[label].push(r);
+    const isMakeUp = r.type && r.type.toLowerCase() === "make up";
+    let tabLabel = isMakeUp ? (r.previousClass ? getClassLabel(r.previousClass) : null) : getClassLabel(r.class_);
+    
+    if (tabLabel) {
+      if (!classMap[tabLabel]) classMap[tabLabel] = [];
+      classMap[tabLabel].push(r);
+    }
   });
 
-  // A class only earns its own tab if it has at least one regular-class row.
-  // Classes with only trial/make-up rows stay out of the tab bar (they still
-  // show up in Semua, and in the Trial / Make Up tabs).
-  const classKeys = Object.keys(classGroups)
-    .filter(label => classGroups[label].some(r => classifyStatusClass(r.statusClass) === "regular"))
-    .sort((a, b) => a.localeCompare(b));
-
-  const trialRows  = filteredAttendance.filter(r => classifyStatusClass(r.statusClass) === "trial");
-  const makeupRows = filteredAttendance.filter(r => classifyStatusClass(r.statusClass) === "makeup");
-
+  const classKeys = Object.keys(classMap);
+  const makeupAll = filteredAttendance.filter(r => r.type && r.type.toLowerCase() === "make up");
+  
   const tabsContainer = document.getElementById("class-tabs-container");
   if (tabsContainer) {
     tabsContainer.innerHTML = [
       `<button class="class-tab active" data-key="__all__">Semua</button>`,
       ...classKeys.map(k => `<button class="class-tab" data-key="${escapeHtml(k)}">${escapeHtml(k)}</button>`),
-      trialRows.length  ? `<button class="class-tab class-tab--trial" data-key="__trial__">Trial</button>` : "",
-      makeupRows.length ? `<button class="class-tab class-tab--makeup" data-key="__makeup__">Make Up</button>` : ""
+      makeupAll.length ? `<button class="class-tab class-tab--makeup" data-key="__makeup__">Make Up</button>` : ""
     ].join("");
 
     tabsContainer.querySelectorAll(".class-tab").forEach(btn => {
@@ -507,25 +500,19 @@ function switchTerm(selectedQuarter) {
   }
 
   window._lp3CurrentTermAll = filteredAttendance;
-  window._lp3ClassGroups    = classGroups;
-  window._lp3TrialRows      = trialRows;
-  window._lp3MakeupRows     = makeupRows;
+  window._lp3ClassMap       = classMap;
+  window._lp3MakeupAll      = makeupAll;
 
   lp3Render("__all__");
 }
 
 function lp3Render(key) {
-  const all         = window._lp3CurrentTermAll || [];
-  const classGroups = window._lp3ClassGroups || {};
-  const trialRows   = window._lp3TrialRows || [];
-  const makeupRows  = window._lp3MakeupRows || [];
+  const all       = window._lp3CurrentTermAll || [];
+  const makeupAll = window._lp3MakeupAll || [];
+  const classMap  = window._lp3ClassMap || {};
 
   const isMakeUpTab = key === "__makeup__";
-  const isTrialTab  = key === "__trial__";
-  let rows = isMakeUpTab ? makeupRows
-           : isTrialTab  ? trialRows
-           : key === "__all__" ? all
-           : (classGroups[key] || []);
+  let rows          = isMakeUpTab ? makeupAll : (key === "__all__" ? all : (classMap[key] || []));
 
   // Sort rows newest to oldest
   rows.sort((a, b) => {
@@ -542,13 +529,44 @@ function lp3Render(key) {
   const tbody     = document.getElementById("lp3-tbody");
   if (!tbody) return;
 
-  // Counter chips: shown on every tab, computed from whatever rows are
-  // currently visible. Present/Absent read the `attendance` field; Trial/Make
-  // Up count rows by their classified status_class.
-  const countHadir      = rows.filter(r => isPresent(r.attendance)).length;
-  const countTidakHadir = rows.length - countHadir;
-  const countTrial      = rows.filter(r => classifyStatusClass(r.statusClass) === "trial").length;
-  const countMakeUp     = rows.filter(r => classifyStatusClass(r.statusClass) === "makeup").length;
+  if (isMakeUpTab) {
+    const countMU = makeupAll.length;
+    if (metricsEl) metricsEl.innerHTML = `
+      <div class="metric-chips">
+        <div class="metric-chip metric-chip--makeup">
+          <div class="mc-icon mc-purple">↺</div>
+          <div class="mc-num purple">${countMU}</div>
+          <div class="mc-lbl">Total Make Up</div>
+        </div>
+      </div>`;
+    if (titleEl) titleEl.textContent = "Riwayat Make Up";
+
+    if (!makeupAll.length) {
+      tbody.innerHTML = `<tr><td colspan="3" class="att-empty">Belum ada data make up.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = makeupAll.map(r => {
+      const cls            = simplifyClassName(r.class_);
+      const { badge, dot } = getStatusBadge(r.status);
+      const reasonTag      = r.makeupReason ? `<span class="reason-tag">${escapeHtml(r.makeupReason)}</span>` : "";
+      const prevTag        = r.previousClass ? `<span class="prev-class-tag">↩ ${escapeHtml(simplifyClassName(r.previousClass))}</span>` : "";
+      return `<tr>
+        <td><span class="att-dot-inline ${dot}"></span>${escapeHtml(r.dateStr || "-")}</td>
+        <td>${escapeHtml(cls)}${reasonTag}${prevTag}</td>
+        <td><span class="att-badge ${badge}">${escapeHtml(r.status)}</span></td>
+      </tr>`;
+    }).join("");
+    return;
+  }
+
+  const regularRows     = rows.filter(r => r.type === "Regular");
+  const makeupRows      = rows.filter(r => r.type === "Make Up");
+  const countHadir      = regularRows.filter(r => r.status.toLowerCase() === "present").length;
+  const countTidakHadir = regularRows.filter(r => {
+    const s = r.status.toLowerCase();
+    return s === "absent" || s === "leave" || s === "sakit" || s === "izin";
+  }).length;
+  const countMakeUp     = makeupRows.length;
 
   if (metricsEl) metricsEl.innerHTML = `
     <div class="metric-chips">
@@ -563,63 +581,27 @@ function lp3Render(key) {
         <div class="mc-lbl">Tidak Hadir</div>
       </div>
       <div class="metric-chip">
-        <div class="mc-icon mc-amber" style="color:#b45309;background:rgba(180,83,9,0.12);">★</div>
-        <div class="mc-num amber" style="color:#b45309;">${countTrial}</div>
-        <div class="mc-lbl">Trial</div>
-      </div>
-      <div class="metric-chip">
         <div class="mc-icon mc-purple">↺</div>
         <div class="mc-num purple">${countMakeUp}</div>
         <div class="mc-lbl">Make Up</div>
       </div>
     </div>`;
 
-  if (titleEl) {
-    titleEl.textContent = isMakeUpTab ? "Riwayat Make Up"
-      : isTrialTab ? "Riwayat Trial"
-      : key === "__all__" ? "Riwayat Kehadiran"
-      : "Riwayat Kehadiran · " + key;
-  }
+  if (titleEl) titleEl.textContent = key === "__all__" ? "Riwayat Kehadiran" : "Riwayat Kehadiran · " + key;
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="3" class="att-empty">${isMakeUpTab ? "Belum ada data make up." : "Belum ada data attendance untuk periode ini."}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="3" class="att-empty">Belum ada data attendance untuk periode ini.</td></tr>`;
     return;
   }
-
-  if (isMakeUpTab) {
-    tbody.innerHTML = rows.map(r => {
-      const cls        = simplifyClassName(r.class_);
-      const prevCls     = r.previousClass ? simplifyClassName(r.previousClass) : "";
-      const prevTag     = prevCls
-        ? `<span class="prev-class-tag">↩ ${escapeHtml(prevCls)}${r.previousDateStr ? " · " + escapeHtml(r.previousDateStr) : ""}</span>`
-        : "";
-      return `<tr>
-        <td>${escapeHtml(r.dateStr || "-")}</td>
-        <td>${escapeHtml(cls)}${prevTag}</td>
-        <td>${escapeHtml(r.makeupReason || "-")}</td>
-      </tr>`;
-    }).join("");
-    // Swap the 3rd header from "Status" to "Reason" for this tab
-    const headRow = document.querySelector("#lp3-tbody")?.closest("table")?.querySelector("thead tr");
-    if (headRow && headRow.children[2]) headRow.children[2].textContent = "Reason";
-    return;
-  }
-
-  // Restore the default 3rd header when leaving the Make Up tab
-  const headRow = document.querySelector("#lp3-tbody")?.closest("table")?.querySelector("thead tr");
-  if (headRow && headRow.children[2]) headRow.children[2].textContent = "Status";
 
   tbody.innerHTML = rows.map(r => {
     const cls            = simplifyClassName(r.class_);
-    const classification = classifyStatusClass(r.statusClass);
-    const inlineTag       = classification !== "regular"
-      ? `<span class="reason-tag">${escapeHtml(toProperCase(r.statusClass))}</span>`
-      : "";
-    const { badge, dot } = getStatusBadge(r.attendance);
+    const { badge, dot } = getStatusBadge(r.status);
+    const reasonTag      = r.makeupReason && r.makeupReason !== "Regular Class" ? `<span class="reason-tag">${escapeHtml(r.makeupReason)}</span>` : "";
     return `<tr>
       <td><span class="att-dot-inline ${dot}"></span>${escapeHtml(r.dateStr || "-")}</td>
-      <td>${escapeHtml(cls)}${inlineTag}</td>
-      <td><span class="att-badge ${badge}">${escapeHtml(r.attendance)}</span></td>
+      <td>${escapeHtml(cls)}${reasonTag}</td>
+      <td><span class="att-badge ${badge}">${escapeHtml(r.status)}</span></td>
     </tr>`;
   }).join("");
 }
@@ -680,14 +662,13 @@ function simplifyClassName(raw) {
   return raw;
 }
 
-function getStatusBadge(attendance) {
-  const s = normalizeText(attendance);
-  if (s.startsWith("present")) return { badge: "badge-present", dot: "dot-present" };
-  if (s.startsWith("leave"))   return { badge: "badge-leave",   dot: "dot-leave"   };
-  if (s.startsWith("absent"))  return { badge: "badge-absent",  dot: "dot-absent"  };
-  // Anything else other than "present" still counts as Absent for the
-  // counter, but keep it visually distinct rather than silently green.
-  return { badge: "badge-absent", dot: "dot-absent" };
+function getStatusBadge(status) {
+  const s = status ? status.toLowerCase() : "";
+  if (s === "present")  return { badge: "badge-present", dot: "dot-present" };
+  if (s === "make up")  return { badge: "badge-makeup",  dot: "dot-makeup"  };
+  if (s === "absent")   return { badge: "badge-absent",  dot: "dot-absent"  };
+  if (s === "leave" || s === "izin" || s === "sakit") return { badge: "badge-leave", dot: "dot-leave" };
+  return { badge: "badge-present", dot: "dot-present" };
 }
 
 function formatGreetingParentName(name) {
@@ -698,33 +679,6 @@ function formatGreetingParentName(name) {
 }
 
 function cleanCell(v) { return (v === null || v === undefined) ? "" : String(v).trim(); }
-
-// ============================================================
-// STATUS CLASSIFICATION (normalizes messy status_class / attendance text)
-// ============================================================
-
-function normalizeText(v) {
-  return String(v || "").trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-// Classifies a row's status_class into 'regular' | 'trial' | 'makeup'.
-// Falls back to 'regular' for anything unrecognized, so a row never
-// silently disappears from the class tabs due to a typo upstream.
-function classifyStatusClass(raw) {
-  const s = normalizeText(raw);
-  if (s.startsWith("trial")) return "trial";
-  if (s.startsWith("make up") || s.startsWith("makeup")) return "makeup";
-  return "regular";
-}
-
-function isPresent(attendance) {
-  return normalizeText(attendance).startsWith("present");
-}
-
-// "make up class - sick" -> "Make Up Class - Sick"
-function toProperCase(raw) {
-  return String(raw || "").replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
-}
 
 function parseExpiryDate(value) {
   if (!value || value === "-" || value.toLowerCase() === "not yet renewal" || value.toLowerCase() === "xxxxx" || value.startsWith("#")) return null;
