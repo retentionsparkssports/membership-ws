@@ -575,9 +575,8 @@ function lp3Render(key) {
     const cls = simplifyClassName(r.class_);
     const attendanceLabel = isLeaveAttendance(r.attendance) ? "Izin" : cleanCell(r.attendance);
     const { badge, dot } = getStatusBadge(attendanceLabel);
-    const typeTag = isMakeUpClass(r.statusClass)
-      ? `<span class="reason-tag">Make Up</span>`
-      : isTrialChangeClass(r.statusClass) ? `<span class="reason-tag">Trial Change</span>` : "";
+    const typeTag = (isMakeUpClass(r.statusClass) || isTrialChangeClass(r.statusClass)) && r.statusClass
+      ? `<span class="reason-tag">${escapeHtml(r.statusClass)}</span>` : "";
     const previousInfo = (isMakeUpClass(r.statusClass) || isTrialChangeClass(r.statusClass))
       ? renderPreviousClassInfo(r.previousDateStr, r.previousClass) : "";
     const finalCell = isMakeUpTab
