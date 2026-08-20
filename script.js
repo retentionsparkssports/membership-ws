@@ -528,7 +528,7 @@ function lp3Render(key) {
 
   const countPresent = rows.filter(r => getAttendanceLabel(r.attendance) === "Present").length;
   const countIzin    = rows.filter(r => getAttendanceLabel(r.attendance) === "Izin").length;
-  const countAbsent  = rows.length - countPresent - countIzin;
+  const countAbsent  = rows.filter(r => getAttendanceLabel(r.attendance) === "Absent").length;
   const countTrial   = rows.filter(r => isTrialChangeClass(r.statusClass)).length;
   const countMakeUp  = rows.filter(r => isMakeUpClass(r.statusClass)).length;
 
@@ -648,22 +648,31 @@ function simplifyClassName(raw) {
 }
 
 function isRegularClass(statusClass) {
-  return cleanCell(statusClass).toLowerCase() === "regular class";
+  return normalizeStatusClass(statusClass).startsWith("regular class");
 }
 
 function isTrialChangeClass(statusClass) {
-  return cleanCell(statusClass).toLowerCase() === "trial change class";
+  return normalizeStatusClass(statusClass).startsWith("trial change class");
 }
 
 function isMakeUpClass(statusClass) {
-  return cleanCell(statusClass).toLowerCase().includes("make up class");
+  return normalizeStatusClass(statusClass).startsWith("make up class");
+}
+
+function normalizeStatusClass(statusClass) {
+  return cleanCell(statusClass)
+    .toLowerCase()
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function getAttendanceLabel(attendance) {
-  const value = cleanCell(attendance).toLowerCase();
+  const value = cleanCell(attendance).toLowerCase().replace(/\s+/g, " ");
   if (value === "present") return "Present";
-  if (value.includes("leave")) return "Izin";
-  return "Absent";
+  if (value.includes("leave") || value.includes("izin")) return "Izin";
+  if (value.includes("absent")) return "Absent";
+  return "Belum ada status";
 }
 
 function renderPreviousClassInfo(previousDateStr, previousClass) {
@@ -675,7 +684,8 @@ function renderPreviousClassInfo(previousDateStr, previousClass) {
 function getStatusBadge(attendanceLabel) {
   if (attendanceLabel === "Present") return { badge: "badge-present", dot: "dot-present" };
   if (attendanceLabel === "Izin") return { badge: "badge-leave", dot: "dot-leave" };
-  return { badge: "badge-absent", dot: "dot-absent" };
+  if (attendanceLabel === "Absent") return { badge: "badge-absent", dot: "dot-absent" };
+  return { badge: "badge-unknown", dot: "dot-unknown" };
 }
 
 function formatGreetingParentName(name) {
