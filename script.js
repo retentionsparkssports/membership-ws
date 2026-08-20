@@ -14,7 +14,6 @@ const app = document.getElementById("app");
 
 let ALL_STUDENTS   = [];
 let ALL_ATTENDANCE = [];
-let DATA_READY     = false;
 let DATA_ERROR     = "";
 let ATTENDANCE_ERROR = false;
 
@@ -112,7 +111,6 @@ async function loadStudentsByPhone(phone) {
       sarName:       row.sar_name,
       waLink:        row.wa_link
     }));
-    DATA_READY = true;
   } catch (e) {
     DATA_ERROR = "Data membership belum bisa dimuat. Silakan coba beberapa saat lagi atau hubungi " + SUPPORT_LABEL + " untuk bantuan.";
     console.error(e);
@@ -140,7 +138,6 @@ async function loadStudentById(studentId) {
       sarName:       row.sar_name,
       waLink:        row.wa_link
     }));
-    DATA_READY = true;
   } catch (e) {
     DATA_ERROR = "Data membership belum bisa dimuat. Silakan coba beberapa saat lagi atau hubungi " + SUPPORT_LABEL + " untuk bantuan.";
     console.error(e);
@@ -362,8 +359,8 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
   document.body.className = "dashboard-page";
   const centerText = student.center;
   const ph         = encodeURIComponent(phone || "");
-  const waTarget   = waLink || SUPPORT_WA;
-  const waLabel    = waLink ? "Hubungi Student Advisor" : `Hubungi ${SUPPORT_LABEL}`;
+  const waTarget   = getSafeWhatsAppLink(waLink);
+  const waLabel    = waTarget !== SUPPORT_WA ? "Hubungi Student Advisor" : `Hubungi ${SUPPORT_LABEL}`;
 
   // Build mapping of Quarter -> Term Display Label
   const quarterMap = {};
@@ -679,6 +676,15 @@ function formatGreetingParentName(name) {
 }
 
 function cleanCell(v) { return (v === null || v === undefined) ? "" : String(v).trim(); }
+
+function getSafeWhatsAppLink(link) {
+  try {
+    const url = new URL(link);
+    return url.protocol === "https:" && url.hostname === "wa.me" ? url.href : SUPPORT_WA;
+  } catch {
+    return SUPPORT_WA;
+  }
+}
 
 function parseExpiryDate(value) {
   if (!value || value === "-" || value.toLowerCase() === "not yet renewal" || value.toLowerCase() === "xxxxx" || value.startsWith("#")) return null;
