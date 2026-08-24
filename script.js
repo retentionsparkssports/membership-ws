@@ -429,7 +429,7 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
         <div class="att-legend">
           <span class="leg-item"><span class="att-dot-inline dot-present"></span>Present</span>
           <span class="leg-item"><span class="att-dot-inline dot-absent"></span>Absent</span>
-          <span class="leg-item"><span class="att-dot-inline dot-leave"></span>Izin</span>
+          <span class="leg-item"><span class="att-dot-inline dot-leave"></span>Leave</span>
         </div>
         <div class="att-table-wrap">
           <table class="att-table">
@@ -547,7 +547,7 @@ function lp3Render(key) {
       <div class="metric-chip">
         <div class="mc-icon mc-yellow">!</div>
         <div class="mc-num yellow">${countIzin}</div>
-        <div class="mc-lbl">Izin</div>
+        <div class="mc-lbl">Leave</div>
       </div>
       <div class="metric-chip">
         <div class="mc-icon mc-blue">↗</div>
@@ -573,7 +573,7 @@ function lp3Render(key) {
 
   tbody.innerHTML = rows.map(r => {
     const cls = simplifyClassName(r.class_);
-    const attendanceLabel = isLeaveAttendance(r.attendance) ? "Izin" : cleanCell(r.attendance);
+    const attendanceLabel = isLeaveAttendance(r.attendance) ? "Leave" : cleanCell(r.attendance);
     const { badge, dot } = getStatusBadge(attendanceLabel);
     const typeTag = (isMakeUpClass(r.statusClass) || isTrialChangeClass(r.statusClass)) && r.statusClass
       ? `<span class="reason-tag">${escapeHtml(r.statusClass)}</span>` : "";
@@ -678,7 +678,7 @@ function renderPreviousClassInfo(previousDateStr, previousClass) {
 
 function getStatusBadge(attendanceLabel) {
   if (attendanceLabel === "Present") return { badge: "badge-present", dot: "dot-present" };
-  if (attendanceLabel === "Izin") return { badge: "badge-leave", dot: "dot-leave" };
+  if (attendanceLabel === "Leave") return { badge: "badge-leave", dot: "dot-leave" };
   return { badge: "badge-absent", dot: "dot-absent" };
 }
 
