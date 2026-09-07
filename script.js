@@ -35,12 +35,13 @@ async function withRetry(fn, attempts = 3, delayMs = 600) {
 }
 
 // ============================================================
-// ICONS
+// ICONS - SVG VERSIONS
 // ============================================================
 
 const ICON_PHONE  = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v2.2a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 3.4 2 2 0 0 1 4.11 1.2h2.2a2 2 0 0 1 2 1.72c.13.96.35 1.9.66 2.8a2 2 0 0 1-.45 2.1L7.6 8.75a16 16 0 0 0 7.65 7.65l.93-.93a2 2 0 0 1 2.1-.45c.9.31 1.84.53 2.8.66A2 2 0 0 1 22 16.92Z"/></svg>`;
 const ICON_SEARCH = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>`;
 const ICON_WA     = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>`;
+const ICON_BACK   = `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><polyline points="15 18 9 12 15 6"/></svg>`;
 
 // ============================================================
 // INIT
@@ -99,17 +100,14 @@ async function loadStudentsByPhone(phone) {
       return data;
     });
 
-    ALL_STUDENTS = (data || []).map(row => ({
-      center:        row.center,
-      studentId:     row.student_id,
-      studentName:   row.student_name,
-      phone:         row.phone_number,
-      parentsName:   row.parents_name,
-      retentionX:    row.retention_x,
-      expiryDateRaw: row.expiry_date_raw,
-      expiryDate:    formatDisplayDate(row.expiry_date_raw),
-      sarName:       row.sar_name,
-      waLink:        row.wa_link
+    ALL_STUDENTS = (data || []).map(s => ({
+      studentId: s.student_id,
+      studentName: s.student_name,
+      center: s.center,
+      parentsName: s.parents_name,
+      expiryDate: s.expiry_date,
+      waLink: s.wa_link,
+      sarName: s.sar_name
     }));
   } catch (e) {
     DATA_ERROR = "Data membership belum bisa dimuat. Silakan coba beberapa saat lagi atau hubungi " + SUPPORT_LABEL + " untuk bantuan.";
@@ -126,17 +124,14 @@ async function loadStudentById(studentId) {
       return data;
     });
 
-    ALL_STUDENTS = (data || []).map(row => ({
-      center:        row.center,
-      studentId:     row.student_id,
-      studentName:   row.student_name,
-      phone:         row.phone_number,
-      parentsName:   row.parents_name,
-      retentionX:    row.retention_x,
-      expiryDateRaw: row.expiry_date_raw,
-      expiryDate:    formatDisplayDate(row.expiry_date_raw),
-      sarName:       row.sar_name,
-      waLink:        row.wa_link
+    ALL_STUDENTS = (data || []).map(s => ({
+      studentId: s.student_id,
+      studentName: s.student_name,
+      center: s.center,
+      parentsName: s.parents_name,
+      expiryDate: s.expiry_date,
+      waLink: s.wa_link,
+      sarName: s.sar_name
     }));
   } catch (e) {
     DATA_ERROR = "Data membership belum bisa dimuat. Silakan coba beberapa saat lagi atau hubungi " + SUPPORT_LABEL + " untuk bantuan.";
@@ -192,7 +187,7 @@ function renderBrandLogo(size) {
 }
 
 // ============================================================
-// LP1: LANDING PAGE
+// LP1: LANDING PAGE (M3 Compliant)
 // ============================================================
 
 function renderLandingPage() {
@@ -211,7 +206,7 @@ function renderLandingPage() {
       </div>
       <p class="hint">Tanpa angka 0 di depan. Contoh: 8111000549</p>
       <button id="btn" onclick="goToDashboard()">Cek Status Membership →</button>
-      <p class="small-note">Butuh bantuan? Hubungi <a href="${SUPPORT_WA}" target="_blank" style="color:var(--green);font-weight:700;">${SUPPORT_LABEL}</a> untuk pengecekan data membership.</p>
+      <p class="small-note">Butuh bantuan? Hubungi <a href="${SUPPORT_WA}" target="_blank">${SUPPORT_LABEL}</a> untuk pengecekan data membership.</p>
     </div>
   `;
   const inp = document.getElementById("phone");
@@ -220,7 +215,7 @@ function renderLandingPage() {
 }
 
 // ============================================================
-// LOADING / ERROR / NOT FOUND
+// LOADING / ERROR / NOT FOUND (M3 Compliant)
 // ============================================================
 
 function renderLoadingPage(title, subtitle) {
@@ -248,21 +243,23 @@ function renderNotFoundPage(phone) {
       <br>
       <a class="wa-help-btn" href="${SUPPORT_WA}" target="_blank">${ICON_WA} Hubungi ${SUPPORT_LABEL}</a>
       <br><br>
-      <a class="link-button" onclick="backToHome()">← Coba Nomor Lain</a>
+      <a class="back-link" onclick="backToHome()">← Kembali ke beranda</a>
     </div>
   `;
 }
 
-function renderErrorPage(message) {
+function renderErrorPage(error) {
   document.body.className = "center-page";
   app.innerHTML = `
     <div class="card">
-      <div class="icon warning">⚠️</div>
-      <h2 class="headline">Data Belum Bisa Dimuat</h2>
-      <p class="error-text">${escapeHtml(message)}</p>
-      <p class="error-text">Silakan muat ulang halaman ini. Jika masih belum bisa, hubungi tim Sparks untuk pengecekan database.</p>
+      <div class="search-visual" style="background: var(--md-sys-color-error-container); color: var(--md-sys-color-error);">⚠</div>
+      <h2 class="headline">Terjadi Kesalahan</h2>
+      <p class="error-text">${escapeHtml(error)}</p>
+      <br>
+      <button onclick="location.reload()">Coba Lagi</button>
       <br><br>
-      <a class="link-button" onclick="backToHome()">← Kembali</a>
+      <a class="wa-help-btn" href="${SUPPORT_WA}" target="_blank">${ICON_WA} Hubungi ${SUPPORT_LABEL}</a>
+      <a class="back-link" onclick="backToHome()">← Kembali ke beranda</a>
     </div>
   `;
 }
@@ -271,35 +268,19 @@ function renderAttendanceErrorPage(studentId, phone) {
   document.body.className = "center-page";
   app.innerHTML = `
     <div class="card">
-      <div class="icon warning">⚠️</div>
-      <h2 class="headline">Data Attendance Belum Bisa Dimuat</h2>
-      <p class="error-text">Kami sempat gagal memuat riwayat kehadiran. Ini biasanya karena koneksi yang lambat.</p>
+      <div class="search-visual" style="background: var(--md-sys-color-warning-container); color: var(--md-sys-color-warning);">!</div>
+      <h2 class="headline">Data Attendance Tidak Tersedia</h2>
+      <p class="error-text">Maaf, kami tidak bisa memuat data attendance untuk saat ini.</p>
       <br>
-      <button id="retry-btn" onclick="retryAttendanceLoad('${escapeHtml(studentId)}')">Coba Lagi</button>
+      <button onclick="history.back()">Kembali</button>
       <br><br>
-      <a class="link-button" href="?phone=${encodeURIComponent(phone || "")}">← Kembali ke daftar anak</a>
+      <a class="wa-help-btn" href="${SUPPORT_WA}" target="_blank">${ICON_WA} Hubungi ${SUPPORT_LABEL}</a>
     </div>
   `;
 }
 
-async function retryAttendanceLoad(studentId) {
-  const btn = document.getElementById("retry-btn");
-  if (btn) { btn.textContent = "Memuat ulang..."; btn.disabled = true; }
-
-  const params = new URLSearchParams(window.location.search);
-  const phone  = params.get("phone");
-
-  await fetchAttendanceForStudent(studentId);
-  if (ATTENDANCE_ERROR) {
-    renderAttendanceErrorPage(studentId, phone);
-    return;
-  }
-  const student = ALL_STUDENTS[0];
-  renderDetailPage(student, ALL_ATTENDANCE, student.waLink, student.sarName, phone);
-}
-
 // ============================================================
-// LP2: DASHBOARD
+// LP2: DASHBOARD (M3 Compliant)
 // ============================================================
 
 function renderDashboardPage(students) {
@@ -353,8 +334,9 @@ function studentCard(student, phone) {
 }
 
 // ============================================================
-// LP3: STUDENT DETAIL
+// LP3: STUDENT DETAIL (M3 Compliant)
 // ============================================================
+
 function renderDetailPage(student, attendance, waLink, sarName, phone) {
   document.body.className = "dashboard-page";
   const centerText = student.center;
@@ -387,8 +369,8 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
 
   app.innerHTML = `
     <div class="topbar topbar-detail">
-      <a class="topbar-back" href="?phone=${ph}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><polyline points="15 18 9 12 15 6"/></svg>
+      <a class="topbar-back" href="?phone=${ph}" title="Kembali">
+        ${ICON_BACK}
       </a>
       <div class="topbar-logo"><div class="topbar-logo-inner">
         <img src="${LOGO_URL}" class="logo-img small" alt="Sparks Sports Academy"
@@ -409,7 +391,7 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
         ${createExpiryBanner(student.expiryDate)}
       </div>
 
-      <!-- CENTERED DROPDOWN MATCHING OLD TERM-BADGE STYLE -->
+      <!-- TERM SELECTOR (M3 Dropdown) -->
       <div class="term-label">
         <div class="term-dropdown-container">
           <select id="term-select" class="term-dropdown">
@@ -419,9 +401,13 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
         </div>
       </div>
 
+      <!-- CLASS TABS FILTER (M3 Segmented Buttons) -->
       <div class="class-tabs-wrap" id="class-tabs-container"></div>
+      
+      <!-- METRICS (M3 Assist Chips) -->
       <div class="metrics-row" id="lp3-metrics"></div>
 
+      <!-- ATTENDANCE TABLE (M3 Data Table) -->
       <div class="att-card">
         <div class="att-header">
           <div class="att-title" id="lp3-att-title">Riwayat Kehadiran</div>
