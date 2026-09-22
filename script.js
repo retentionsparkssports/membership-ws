@@ -504,6 +504,7 @@ function switchTerm(selectedQuarter) {
   lp3Render("__all__");
 }
 
+// batas suci here
 function lp3Render(key) {
   const all       = window._lp3CurrentTermAll || [];
   const classMap  = window._lp3ClassMap || {};
@@ -511,6 +512,7 @@ function lp3Render(key) {
   const makeupAll = window._lp3MakeupAll || [];
   const isMakeUpTab = key === "__makeup__";
   const isTrialTab  = key === "__trial__";
+  
   const rows = (isMakeUpTab ? makeupAll : isTrialTab ? trialAll : (key === "__all__" ? all : (classMap[key] || []))).slice().sort((a, b) => {
     const dateA = a.rawDate || a.dateStr || "";
     const dateB = b.rawDate || b.dateStr || "";
@@ -524,7 +526,8 @@ function lp3Render(key) {
   const titleEl   = document.getElementById("lp3-att-title");
   const tableHead = document.getElementById("lp3-table-head");
   const tbody     = document.getElementById("lp3-tbody");
-  if (!tbody) return;
+  const tableWrap = document.querySelector(".att-table-wrap");
+  if (!tbody || !tableWrap) return;
 
   const countPresent = rows.filter(r => cleanCell(r.attendance) === "Present").length;
   const countIzin    = rows.filter(r => isLeaveAttendance(r.attendance)).length;
@@ -561,17 +564,45 @@ function lp3Render(key) {
       </div>
     </div>`;
 
-  if (titleEl) titleEl.textContent = isMakeUpTab ? "Riwayat Make Up" : isTrialTab ? "Riwayat Trial" : (key === "__all__" ? "Riwayat Kehadiran" : "Riwayat Kehadiran · " + key);
-  if (tableHead) tableHead.innerHTML = isMakeUpTab
-    ? `<tr><th>Tanggal</th><th>Kelas</th><th>Alasan</th></tr>`
-    : `<tr><th>Tanggal</th><th>Kelas</th><th>Kehadiran</th></tr>`;
+  // Update Title
+  if (titleEl) {
+    titleEl.textContent = isMakeUpTab 
+      ? "Informasi Kelas Pengganti" 
+      : isTrialTab 
+      ? "Riwayat Trial" 
+      : (key === "__all__" ? "Riwayat Kehadiran" : "Riwayat Kehadiran · " + key);
+  }
 
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="3" class="att-empty">Belum ada data attendance untuk pilihan ini.</td></tr>`;
+  // --- MAKE UP CARD VIEW ENGINE ---
+  if (isMakeUpTab) {
+    if (!rows.length) {
+      tableWrap.innerHTML = `<div class="att-empty" style="padding: 24px; text-align: center;">Belum ada riwayat Make Up untuk periode ini.</div>`;
+      return;
+    }
+
+    tableWrap.innerHTML = `
+      <div class="makeup-cards-list">
+        ${rows.map(r => renderMakeupCard(r)).join("")}
+      </div>
+    `;
     return;
   }
 
-  tbody.innerHTML = rows.map(r => {
+  // --- STANDARD TABLE VIEW ENGINE (For All / Specific Classes / Trial) ---
+  tableWrap.innerHTML = `
+    <table class="att-table">
+      <thead id="lp3-table-head"><tr><th>Tanggal</th><th>Kelas</th><th>Kehadiran</th></tr></thead>
+      <tbody id="lp3-tbody"></tbody>
+    </table>
+  `;
+
+  const newTbody = document.getElementById("lp3-tbody");
+  if (!rows.length) {
+    newTbody.innerHTML = `<tr><td colspan="3" class="att-empty">Belum ada data attendance untuk pilihan ini.</td></tr>`;
+    return;
+  }
+
+  newTbody.innerHTML = rows.map(r => {
     const cls = simplifyClassName(r.class_);
     const attendanceLabel = isLeaveAttendance(r.attendance) ? "Leave" : cleanCell(r.attendance);
     const { badge, dot } = getStatusBadge(attendanceLabel);
@@ -579,16 +610,55 @@ function lp3Render(key) {
       ? `<span class="reason-tag">${escapeHtml(r.statusClass)}</span>` : "";
     const previousInfo = (isMakeUpClass(r.statusClass) || isTrialChangeClass(r.statusClass))
       ? renderPreviousClassInfo(r.previousDateStr, r.previousClass) : "";
-    const finalCell = isMakeUpTab
-      ? escapeHtml(r.makeupReason || "-")
-      : `<span class="att-badge ${badge}">${escapeHtml(attendanceLabel)}</span>`;
+    
     return `<tr>
       <td><span class="att-dot-inline ${dot}"></span>${escapeHtml(r.dateStr || "-")}</td>
       <td>${escapeHtml(cls)}${typeTag}${previousInfo}</td>
-      <td>${finalCell}</td>
+      <td><span class="att-badge ${badge}">${escapeHtml(attendanceLabel)}</span></td>
     </tr>`;
   }).join("");
 }
+
+// Helper to generate each Make Up Card
+function renderMakeupCard(r) {
+  const currentClass  = simplifyClassName(r.class_) || "-";
+  const statusKeterangan = r.statusClass || "-";
+  const tanggalIzin   = r.previousDateStr || "-";
+  const kelasAsal     = simplifyClassName(r.previousClass) || "-";
+  const tanggalMakeup = r.dateStr || "-";
+  const alasan        = r.makeupReason || "-";
+
+  return `
+    <div class="makeup-card">
+      <div class="makeup-card-title">${escapeHtml(currentClass)}</div>
+      <div class="makeup-card-divider"></div>
+      <div class="makeup-card-grid">
+        <div class="makeup-row">
+          <span class="makeup-label">📌 Keterangan</span>
+          <span class="makeup-value">${escapeHtml(statusKeterangan)}</span>
+        </div>
+        <div class="makeup-row">
+          <span class="makeup-label">📅 Tanggal Izin</span>
+          <span class="makeup-value">${escapeHtml(tanggalIzin)}</span>
+        </div>
+        <div class="makeup-row">
+          <span class="makeup-label">🏟️ Kelas Asal</span>
+          <span class="makeup-value">${escapeHtml(kelasAsal)}</span>
+        </div>
+        <div class="makeup-row">
+          <span class="makeup-label">🔄 Tanggal Make Up</span>
+          <span class="makeup-value highlight">${escapeHtml(tanggalMakeup)}</span>
+        </div>
+        <div class="makeup-row">
+          <span class="makeup-label">💬 Alasan</span>
+          <span class="makeup-value">${escapeHtml(alasan)}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// and here
 
 // ============================================================
 // EXPIRY BANNER
