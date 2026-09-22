@@ -625,7 +625,7 @@ function renderMakeupCard(r) {
       <div style="height:1px;background:#edf2f7;margin-bottom:10px;"></div>
       <div style="display:flex;flex-direction:column;gap:6px;font-size:0.82rem;">
         <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Kelas Asal</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(kelasAsal)}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Tanggal Izin</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(tanggalIzin)}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Tanggal Awal</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(tanggalIzin)}</span></div>
         <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Tanggal Ganti</span><span style="color:#2b6cb0;font-weight:700;">${escapeHtml(tanggalMakeup)}</span></div>
         <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Keterangan</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(alasan)}</span></div>
       </div>
