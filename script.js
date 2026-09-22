@@ -552,7 +552,7 @@ function lp3Render(key) {
     titleEl.textContent = isMakeUpTab 
       ? "Informasi Kelas Pengganti" 
       : isTrialTab 
-      ? "Riwayat Kelas Trial" 
+      ? "Informasi Kelas Trial" 
       : (key === "__all__" ? "Riwayat Kehadiran" : "Riwayat Kehadiran · " + key);
   }
 
