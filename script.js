@@ -562,7 +562,7 @@ function lp3Render(key) {
   }
 
   // MAKE UP TAB CARD VIEW
-  if (isMakeUpTab) {
+  if (isMakeUpTab || isTrialTab) {
     if (!rows.length) {
       container.innerHTML = `<div class="att-empty" style="padding:24px;text-align:center;">Belum ada data Make Up untuk pilihan ini.</div>`;
       return;
@@ -624,9 +624,10 @@ function renderMakeupCard(r) {
       <div class="makeup-card-title" style="font-weight:700;font-size:0.92rem;color:#1a202c;margin-bottom:8px;">${escapeHtml(currentClass)}</div>
       <div style="height:1px;background:#edf2f7;margin-bottom:10px;"></div>
       <div style="display:flex;flex-direction:column;gap:6px;font-size:0.82rem;">
+        <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Jenis Kelas</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(statusKeterangan)}</span></div>
         <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Kelas Asal</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(kelasAsal)}</span></div>
         <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Tanggal Izin</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(tanggalIzin)}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Tanggal Make Up</span><span style="color:#2b6cb0;font-weight:700;">${escapeHtml(tanggalMakeup)}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Tanggal Ganti</span><span style="color:#2b6cb0;font-weight:700;">${escapeHtml(tanggalMakeup)}</span></div>
         <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Alasan</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(alasan)}</span></div>
       </div>
     </div>
