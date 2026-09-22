@@ -552,13 +552,14 @@ function lp3Render(key) {
     titleEl.textContent = isMakeUpTab 
       ? "Informasi Kelas Pengganti" 
       : isTrialTab 
-      ? "Riwayat Trial" 
+      ? "Riwayat Kelas Trial" 
       : (key === "__all__" ? "Riwayat Kehadiran" : "Riwayat Kehadiran · " + key);
   }
 
   // Toggle Legend visibility
   if (legendEl) {
     legendEl.style.display = isMakeUpTab ? "none" : "flex";
+    legendEl.style.display = isTrialTab ? "none" : "flex";
   }
 
   // MAKE UP TAB CARD VIEW
@@ -627,7 +628,7 @@ function renderMakeupCard(r) {
         <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Kelas Asal</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(kelasAsal)}</span></div>
         <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Tanggal Izin</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(tanggalIzin)}</span></div>
         <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Tanggal Ganti</span><span style="color:#2b6cb0;font-weight:700;">${escapeHtml(tanggalMakeup)}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Alasan</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(alasan)}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Keterangan</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(alasan)}</span></div>
       </div>
     </div>
   `;
