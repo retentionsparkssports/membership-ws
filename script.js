@@ -558,8 +558,7 @@ function lp3Render(key) {
 
   // Toggle Legend visibility
   if (legendEl) {
-    legendEl.style.display = isMakeUpTab ? "none" : "flex";
-    legendEl.style.display = isTrialTab ? "none" : "flex";
+    legendEl.style.display = isMakeUpTab ? "none" : isTrialTab? "none" : "flex";
   }
 
   // MAKE UP TAB CARD VIEW
