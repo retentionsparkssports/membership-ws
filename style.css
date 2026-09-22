@@ -1112,3 +1112,61 @@ button:disabled {
   font-weight: 500;
   padding: 8px;
 }
+
+/* Make Up Card Layout */
+.makeup-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+.makeup-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.makeup-card-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #1a202c;
+  margin-bottom: 8px;
+}
+
+.makeup-card-divider {
+  height: 1px;
+  background-color: #edf2f7;
+  margin-bottom: 10px;
+}
+
+.makeup-card-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.makeup-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.82rem;
+}
+
+.makeup-label {
+  color: #718096;
+  font-weight: 500;
+}
+
+.makeup-value {
+  color: #2d3748;
+  font-weight: 600;
+  text-align: right;
+}
+
+.makeup-value.highlight {
+  color: #2b6cb0;
+  font-weight: 700;
+}
