@@ -19,8 +19,6 @@ let ATTENDANCE_ERROR = false;
 
 function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
 
-// Retries an async RPC-calling function a few times before giving up,
-// so a single flaky/slow network hiccup doesn't silently render as "no data".
 async function withRetry(fn, attempts = 3, delayMs = 600) {
   let lastErr;
   for (let i = 0; i < attempts; i++) {
@@ -51,7 +49,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const phone     = params.get("phone");
   const studentId = params.get("sid");
 
-  // LP3: student detail
   if (studentId) {
     renderLoadingPage("Memuat detail attendance", "Mohon tunggu sebentar.");
     await loadStudentById(studentId);
@@ -71,7 +68,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  // LP2: dashboard
   if (phone) {
     renderLoadingPage("Mencari data membership", "Mohon tunggu sebentar. Kami sedang mencocokkan nomor WhatsApp yang kamu masukkan.");
     await loadStudentsByPhone(phone);
@@ -82,12 +78,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  // LP1: landing
   renderLandingPage();
 });
 
 // ============================================================
-// DATABASE LOADERS (SECURE SUPABASE RPC CALLS)
+// DATABASE LOADERS
 // ============================================================
 
 async function loadStudentsByPhone(phone) {
@@ -355,6 +350,7 @@ function studentCard(student, phone) {
 // ============================================================
 // LP3: STUDENT DETAIL
 // ============================================================
+
 function renderDetailPage(student, attendance, waLink, sarName, phone) {
   document.body.className = "dashboard-page";
   const centerText = student.center;
@@ -362,7 +358,6 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
   const waTarget   = getSafeWhatsAppLink(waLink);
   const waLabel    = waTarget !== SUPPORT_WA ? "Hubungi Student Advisor" : `Hubungi ${SUPPORT_LABEL}`;
 
-  // Build mapping of Quarter -> Term Display Label
   const quarterMap = {};
   attendance.forEach(r => {
     if (r.quarter) {
@@ -372,7 +367,6 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
     }
   });
 
-  // Sort Quarters descending (e.g., "2026-Q3", "2026-Q2", "2026-Q1")
   const sortedQuarters = Object.keys(quarterMap).sort((a, b) => b.localeCompare(a));
   const defaultQuarter = sortedQuarters.length > 0 ? sortedQuarters[0] : "";
 
@@ -409,7 +403,6 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
         ${createExpiryBanner(student.expiryDate)}
       </div>
 
-      <!-- CENTERED DROPDOWN MATCHING OLD TERM-BADGE STYLE -->
       <div class="term-label">
         <div class="term-dropdown-container">
           <select id="term-select" class="term-dropdown">
@@ -426,17 +419,12 @@ function renderDetailPage(student, attendance, waLink, sarName, phone) {
         <div class="att-header">
           <div class="att-title" id="lp3-att-title">Riwayat Kehadiran</div>
         </div>
-        <div class="att-legend">
+        <div class="att-legend" id="lp3-att-legend">
           <span class="leg-item"><span class="att-dot-inline dot-present"></span>Present</span>
           <span class="leg-item"><span class="att-dot-inline dot-absent"></span>Absent</span>
           <span class="leg-item"><span class="att-dot-inline dot-leave"></span>Leave</span>
         </div>
-        <div class="att-table-wrap">
-          <table class="att-table">
-            <thead id="lp3-table-head"><tr><th>Tanggal</th><th>Kelas</th><th>Kehadiran</th></tr></thead>
-            <tbody id="lp3-tbody"></tbody>
-          </table>
-        </div>
+        <div class="att-table-wrap" id="lp3-att-container"></div>
       </div>
 
       <a class="wa-help-btn wa-help-btn--full" href="${waTarget}" target="_blank">${ICON_WA} ${waLabel}</a>
@@ -462,8 +450,6 @@ function switchTerm(selectedQuarter) {
     ? allAttendance.filter(r => r.quarter === selectedQuarter)
     : allAttendance;
 
-  // Main-class tabs exist only for classes with a Regular Class record.
-  // Once a tab exists, it includes that class's Regular, Trial, and Make Up records.
   const classMap = {};
   filteredAttendance.forEach(r => {
     if (isRegularClass(r.statusClass)) {
@@ -504,7 +490,6 @@ function switchTerm(selectedQuarter) {
   lp3Render("__all__");
 }
 
-// batas suci here
 function lp3Render(key) {
   const all       = window._lp3CurrentTermAll || [];
   const classMap  = window._lp3ClassMap || {};
@@ -524,10 +509,9 @@ function lp3Render(key) {
 
   const metricsEl = document.getElementById("lp3-metrics");
   const titleEl   = document.getElementById("lp3-att-title");
-  const tableHead = document.getElementById("lp3-table-head");
-  const tbody     = document.getElementById("lp3-tbody");
-  const tableWrap = document.querySelector(".att-table-wrap");
-  if (!tbody || !tableWrap) return;
+  const legendEl  = document.getElementById("lp3-att-legend");
+  const container = document.getElementById("lp3-att-container");
+  if (!container) return;
 
   const countPresent = rows.filter(r => cleanCell(r.attendance) === "Present").length;
   const countIzin    = rows.filter(r => isLeaveAttendance(r.attendance)).length;
@@ -564,7 +548,6 @@ function lp3Render(key) {
       </div>
     </div>`;
 
-  // Update Title
   if (titleEl) {
     titleEl.textContent = isMakeUpTab 
       ? "Informasi Kelas Pengganti" 
@@ -573,14 +556,19 @@ function lp3Render(key) {
       : (key === "__all__" ? "Riwayat Kehadiran" : "Riwayat Kehadiran · " + key);
   }
 
-  // --- MAKE UP CARD VIEW ENGINE ---
+  // Toggle Legend visibility
+  if (legendEl) {
+    legendEl.style.display = isMakeUpTab ? "none" : "flex";
+  }
+
+  // MAKE UP TAB CARD VIEW
   if (isMakeUpTab) {
     if (!rows.length) {
-      tableWrap.innerHTML = `<div class="att-empty" style="padding: 24px; text-align: center;">Belum ada riwayat Make Up untuk periode ini.</div>`;
+      container.innerHTML = `<div class="att-empty" style="padding:24px;text-align:center;">Belum ada data Make Up untuk pilihan ini.</div>`;
       return;
     }
 
-    tableWrap.innerHTML = `
+    container.innerHTML = `
       <div class="makeup-cards-list">
         ${rows.map(r => renderMakeupCard(r)).join("")}
       </div>
@@ -588,77 +576,63 @@ function lp3Render(key) {
     return;
   }
 
-  // --- STANDARD TABLE VIEW ENGINE (For All / Specific Classes / Trial) ---
-  tableWrap.innerHTML = `
-    <table class="att-table">
-      <thead id="lp3-table-head"><tr><th>Tanggal</th><th>Kelas</th><th>Kehadiran</th></tr></thead>
-      <tbody id="lp3-tbody"></tbody>
-    </table>
-  `;
-
-  const newTbody = document.getElementById("lp3-tbody");
+  // STANDARD TABLE VIEW
   if (!rows.length) {
-    newTbody.innerHTML = `<tr><td colspan="3" class="att-empty">Belum ada data attendance untuk pilihan ini.</td></tr>`;
+    container.innerHTML = `
+      <table class="att-table">
+        <thead><tr><th>Tanggal</th><th>Kelas</th><th>Kehadiran</th></tr></thead>
+        <tbody><tr><td colspan="3" class="att-empty">Belum ada data attendance untuk pilihan ini.</td></tr></tbody>
+      </table>
+    `;
     return;
   }
 
-  newTbody.innerHTML = rows.map(r => {
-    const cls = simplifyClassName(r.class_);
-    const attendanceLabel = isLeaveAttendance(r.attendance) ? "Leave" : cleanCell(r.attendance);
-    const { badge, dot } = getStatusBadge(attendanceLabel);
-    const typeTag = (isMakeUpClass(r.statusClass) || isTrialChangeClass(r.statusClass)) && r.statusClass
-      ? `<span class="reason-tag">${escapeHtml(r.statusClass)}</span>` : "";
-    const previousInfo = (isMakeUpClass(r.statusClass) || isTrialChangeClass(r.statusClass))
-      ? renderPreviousClassInfo(r.previousDateStr, r.previousClass) : "";
-    
-    return `<tr>
-      <td><span class="att-dot-inline ${dot}"></span>${escapeHtml(r.dateStr || "-")}</td>
-      <td>${escapeHtml(cls)}${typeTag}${previousInfo}</td>
-      <td><span class="att-badge ${badge}">${escapeHtml(attendanceLabel)}</span></td>
-    </tr>`;
-  }).join("");
+  container.innerHTML = `
+    <table class="att-table">
+      <thead><tr><th>Tanggal</th><th>Kelas</th><th>Kehadiran</th></tr></thead>
+      <tbody>
+        ${rows.map(r => {
+          const cls = simplifyClassName(r.class_);
+          const attendanceLabel = isLeaveAttendance(r.attendance) ? "Leave" : cleanCell(r.attendance);
+          const { badge, dot } = getStatusBadge(attendanceLabel);
+          const typeTag = (isMakeUpClass(r.statusClass) || isTrialChangeClass(r.statusClass)) && r.statusClass
+            ? `<span class="reason-tag">${escapeHtml(r.statusClass)}</span>` : "";
+          const previousInfo = (isMakeUpClass(r.statusClass) || isTrialChangeClass(r.statusClass))
+            ? renderPreviousClassInfo(r.previousDateStr, r.previousClass) : "";
+          
+          return `<tr>
+            <td><span class="att-dot-inline ${dot}"></span>${escapeHtml(r.dateStr || "-")}</td>
+            <td>${escapeHtml(cls)}${typeTag}${previousInfo}</td>
+            <td><span class="att-badge ${badge}">${escapeHtml(attendanceLabel)}</span></td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table>
+  `;
 }
 
-// Helper to generate each Make Up Card
 function renderMakeupCard(r) {
-  const currentClass  = simplifyClassName(r.class_) || "-";
+  const currentClass     = simplifyClassName(r.class_) || "-";
   const statusKeterangan = r.statusClass || "-";
-  const tanggalIzin   = r.previousDateStr || "-";
-  const kelasAsal     = simplifyClassName(r.previousClass) || "-";
-  const tanggalMakeup = r.dateStr || "-";
-  const alasan        = r.makeupReason || "-";
+  const tanggalIzin      = r.previousDateStr || "-";
+  const kelasAsal        = simplifyClassName(r.previousClass) || "-";
+  const tanggalMakeup    = r.dateStr || "-";
+  const alasan           = r.makeupReason || "-";
 
   return `
-    <div class="makeup-card">
-      <div class="makeup-card-title">${escapeHtml(currentClass)}</div>
-      <div class="makeup-card-divider"></div>
-      <div class="makeup-card-grid">
-        <div class="makeup-row">
-          <span class="makeup-label">📌 Keterangan</span>
-          <span class="makeup-value">${escapeHtml(statusKeterangan)}</span>
-        </div>
-        <div class="makeup-row">
-          <span class="makeup-label">📅 Tanggal Izin</span>
-          <span class="makeup-value">${escapeHtml(tanggalIzin)}</span>
-        </div>
-        <div class="makeup-row">
-          <span class="makeup-label">🏟️ Kelas Asal</span>
-          <span class="makeup-value">${escapeHtml(kelasAsal)}</span>
-        </div>
-        <div class="makeup-row">
-          <span class="makeup-label">🔄 Tanggal Make Up</span>
-          <span class="makeup-value highlight">${escapeHtml(tanggalMakeup)}</span>
-        </div>
-        <div class="makeup-row">
-          <span class="makeup-label">💬 Alasan</span>
-          <span class="makeup-value">${escapeHtml(alasan)}</span>
-        </div>
+    <div class="makeup-card" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:10px;">
+      <div class="makeup-card-title" style="font-weight:700;font-size:0.92rem;color:#1a202c;margin-bottom:8px;">${escapeHtml(currentClass)}</div>
+      <div style="height:1px;background:#edf2f7;margin-bottom:10px;"></div>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:0.82rem;">
+        <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Status</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(statusKeterangan)}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Tanggal Izin</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(tanggalIzin)}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Kelas Asal</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(kelasAsal)}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Tanggal Make Up</span><span style="color:#2b6cb0;font-weight:700;">${escapeHtml(tanggalMakeup)}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Alasan</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(alasan)}</span></div>
       </div>
     </div>
   `;
 }
-
-// and here
 
 // ============================================================
 // EXPIRY BANNER
