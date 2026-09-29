@@ -612,11 +612,12 @@ function lp3Render(key) {
 }
 
 function renderMakeupCard(r) {
-  const currentClass     = simplifyClassName(r.class_) || "-";
+  const currentClass     = simplifyClassName(r.class_, switcher=2) || "-";  
   const statusKeterangan = r.statusClass || "-";
   const tanggalIzin      = r.previousDateStr || "-";
   const kelasAsal        = simplifyClassName(r.previousClass) || "-";
   const tanggalMakeup    = r.dateStr || "-";
+  const kelasMakeup      = simplifyClassName(r.class_) || "-";
   const alasan           = r.makeupReason || "-";
 
   return `
@@ -626,6 +627,7 @@ function renderMakeupCard(r) {
       <div style="display:flex;flex-direction:column;gap:6px;font-size:0.82rem;">
         <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Kelas Asal</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(kelasAsal)}</span></div>
         <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Tanggal Asal</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(tanggalIzin)}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Kelas Ganti</span><span style="color:#2b6cb0;font-weight:700;">${escapeHtml(kelasMakeup)}</span></div>
         <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Tanggal Ganti</span><span style="color:#2b6cb0;font-weight:700;">${escapeHtml(tanggalMakeup)}</span></div>
         <div style="display:flex;justify-content:space-between;"><span style="color:#718096;font-weight:500;">Keterangan</span><span style="color:#2d3748;font-weight:600;">${escapeHtml(alasan)}</span></div>
       </div>
@@ -682,9 +684,10 @@ function getClassLabel(raw) {
   return parts.length >= 3 ? parts[2] : raw;
 }
 
-function simplifyClassName(raw) {
+function simplifyClassName(raw, switcher=1) {
   if (!raw) return "";
   const parts = raw.split("|").map(p => p.trim());
+  if ((parts.length >= 5) && (switcher=2) ) return `${parts[2]}`;
   if (parts.length >= 5) return `${parts[2]} · ${parts[3]} ${parts[4]}`;
   return raw;
 }
