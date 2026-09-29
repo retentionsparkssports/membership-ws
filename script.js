@@ -687,7 +687,7 @@ function getClassLabel(raw) {
 function simplifyClassName(raw, switcher=1) {
   if (!raw) return "";
   const parts = raw.split("|").map(p => p.trim());
-  if ((parts.length >= 5) && (switcher=2) ) return `${parts[2]}`;
+  if ((parts.length >= 5) && (switcher==2) ) return `${parts[2]}`;
   if (parts.length >= 5) return `${parts[2]} · ${parts[3]} ${parts[4]}`;
   return raw;
 }
